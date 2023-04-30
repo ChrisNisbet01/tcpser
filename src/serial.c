@@ -121,7 +121,7 @@ int ser_get_bps_const(int speed) {
 
 }
 
-int ser_init_conn(char const *tty, int speed) {
+int ser_init_conn(char const *tty, int speed, int stopbits) {
   int fd = -1;
   struct termios tio;
   int bps_rate = 0;
@@ -157,6 +157,8 @@ int ser_init_conn(char const *tty, int speed) {
 #else
       tio.c_cflag = CS8 | CLOCAL | CREAD | CRTSCTS;
 #endif
+      if (stopbits == 2)
+        tio.c_cflag |= CSTOPB;
       tio.c_iflag = IGNBRK;
       tio.c_oflag = 0;
       tio.c_lflag = 0;
@@ -186,6 +188,21 @@ int ser_set_flow_control(int fd, unsigned iflag, unsigned cflag) {
   tio.c_iflag &= ~(IXON | IXOFF);
   tio.c_cflag &= ~CRTSCTS;
   tio.c_iflag |= iflag;
+  tio.c_cflag |= cflag;
+  if(0 != tcsetattr(fd, TCSANOW, &tio)) {
+    ELOG(LOG_FATAL,"Could not set serial port attributes");
+    return -1;
+  }
+  return 0;
+}
+
+int ser_set_parity_databits(int fd, unsigned cflag) {
+  struct termios tio;
+  if(0 != tcgetattr(fd, &tio)) {
+    ELOG(LOG_FATAL, "Could not get serial port attributes");
+    return -1;
+  }
+  tio.c_cflag &= ~(PARENB | PARODD | CS7 | CS8);
   tio.c_cflag |= cflag;
   if(0 != tcsetattr(fd, TCSANOW, &tio)) {
     ELOG(LOG_FATAL,"Could not set serial port attributes");

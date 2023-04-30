@@ -35,7 +35,7 @@ int dce_connect(dce_config *cfg) {
   if (cfg->is_ip232) {
     rc = ip232_init_conn(cfg);
   } else {
-    cfg->serial = serial_side_create(cfg->tty, cfg->port_speed);
+    cfg->serial = serial_side_create(cfg->tty, cfg->port_speed, cfg->stopbits);
     if (cfg->serial == NULL) {
         rc = -1;
     } else {
@@ -71,6 +71,48 @@ int dce_set_flow_control(dce_config *cfg, int opts) {
     rc = ip232_set_flow_control(cfg, iflag, cflag);
   } else {
     rc = cfg->serial->methods->set_flow_control(cfg->serial, iflag, cflag);
+  }
+
+  LOG_EXIT()
+  return rc;
+}
+
+int dce_set_parity_databits(dce_config *cfg, unsigned val) {
+  unsigned cflag = 0;
+  int rc = 0;
+
+  LOG_ENTER();
+
+  switch (val) {
+    case MDM_PARITY_NONE_DATA_8:
+      LOG(LOG_ALL, "Setting NONE parity, 8 data bits");
+      cflag |= CS8;
+      break;
+    case MDM_PARITY_ODD_DATA_7:
+      LOG(LOG_ALL, "Setting ODD parity, 7 data bits");
+      cflag |= PARENB | PARODD | CS7;
+      break;
+    case MDM_PARITY_EVEN_DATA_7:
+      LOG(LOG_ALL, "Setting EVEN parity, 7 data bits");
+      cflag |= PARENB | CS7;
+      break;
+    case MDM_PARITY_NONE_DATA_7:
+      LOG(LOG_ALL, "Setting NONE parity, 7 data bits");
+      cflag |= CS7;
+      break;
+    case MDM_PARITY_ODD_DATA_8:
+      LOG(LOG_ALL, "Setting ODD parity, 8 DATA");
+      cflag |= PARENB | PARODD | CS8;
+      break;
+    case MDM_PARITY_EVEN_DATA_8:
+      LOG(LOG_ALL, "Setting EVEN parity, 8 DATA");
+      cflag |= PARENB | CS8;
+      break;
+  }
+
+  if (cfg->is_ip232) {
+  } else {
+      rc = cfg->serial->methods->set_parity_databits(cfg->serial, cflag);
   }
 
   LOG_EXIT()

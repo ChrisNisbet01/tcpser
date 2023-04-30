@@ -42,6 +42,7 @@ typedef struct ip232 {
 typedef struct dce_config {
   char tty[256];
   int port_speed;
+  int stopbits;
   int parity;
   int dp[2][2];
   int sSocket;
@@ -54,6 +55,7 @@ typedef struct dce_config {
 void dce_init_config(dce_config *cfg);
 int dce_connect(dce_config *cfg);
 int dce_set_flow_control(dce_config *cfg, int opts);
+int dce_set_parity_databits(dce_config *cfg, unsigned val);
 int dce_set_control_lines(dce_config *cfg, int state);
 int dce_get_control_lines(dce_config *cfg);
 int dce_check_control_lines(dce_config *cfg);

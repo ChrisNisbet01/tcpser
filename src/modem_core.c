@@ -459,6 +459,21 @@ int mdm_parse_cmd(modem_config* cfg) {
             case S_REG_LF:
               cfg->crlf[1] = cfg->s[S_REG_LF];
               break;
+            case S_REG_PARITY_DATABITS:
+              switch (cfg->s[S_REG_PARITY_DATABITS]) {
+                case MDM_PARITY_NONE_DATA_8:
+                case MDM_PARITY_ODD_DATA_7:
+                case MDM_PARITY_EVEN_DATA_7:
+                case MDM_PARITY_NONE_DATA_7:
+                case MDM_PARITY_ODD_DATA_8:
+                case MDM_PARITY_EVEN_DATA_8:
+                  dce_set_parity_databits(&cfg->dce_data, cfg->s[S_REG_PARITY_DATABITS]);
+                  break;
+                default:
+                  cmd=AT_CMD_ERR;
+                  break;
+              }
+              break;
           }
         } else {
           LOG(LOG_DEBUG, "Ignoring S register %d=%s", num, tmp);

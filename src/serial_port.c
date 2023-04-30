@@ -120,6 +120,18 @@ serial_port_set_flow_control(serial_side_api_st *serial, int const iflag, int co
     return ser_set_flow_control(device->fd, iflag, cflag);
 }
 
+static int serial_port_set_parity_databits(serial_side_api_st *serial, int const cflag)
+{
+    if (serial == NULL)
+    {
+        return -1;
+    }
+
+    serial_device * const device = container_of(serial, serial_device, api);
+
+    return ser_set_parity_databits(device->fd, cflag);
+}
+
 static int
 serial_port_get_control_lines(serial_side_api_st *serial)
 {
@@ -168,16 +180,17 @@ static serial_side_methods_st const serial_side_methods =
     .write = serial_port_write,
 
     .set_flow_control = serial_port_set_flow_control,
+    .set_parity_databits = serial_port_set_parity_databits,
     .get_control_lines = serial_port_get_control_lines,
     .set_control_lines = serial_port_set_control_lines,
     .read = serial_port_read
 };
 
 serial_side_api_st *
-serial_port_init(char const * const device_name, int const speed)
+serial_port_init(char const * const device_name, int const speed, int const stopbits)
 {
     struct serial_device * device = NULL;
-    int const fd = ser_init_conn(device_name, speed);
+    int const fd = ser_init_conn(device_name, speed, stopbits);
 
     if (fd == -1)
     {

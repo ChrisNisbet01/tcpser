@@ -166,6 +166,11 @@ terminal_set_flow_control(serial_side_api_st *serial, int const iflag, int const
     return 0;
 }
 
+static int terminal_set_parity_databits(serial_side_api_st *serial, int const cflag)
+{
+    return 0;
+}
+
 static int
 terminal_get_control_lines(serial_side_api_st *serial)
 {
@@ -199,6 +204,7 @@ static serial_side_methods_st const terminal_methods =
     .write = terminal_write,
 
     .set_flow_control = terminal_set_flow_control,
+    .set_parity_databits = terminal_set_parity_databits,
     .get_control_lines = terminal_get_control_lines,
     .set_control_lines = terminal_set_control_lines,
     .read = terminal_read

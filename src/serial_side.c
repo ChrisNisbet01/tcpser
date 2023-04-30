@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 serial_side_api_st *
-serial_side_create(char const * const device_name, int const speed)
+serial_side_create(char const * const device_name, int const speed, int const stopbits)
 {
     serial_side_api_st * pctx = NULL;
 
@@ -21,7 +21,7 @@ serial_side_create(char const * const device_name, int const speed)
     else
     {
         /* Assume serial device. */
-        pctx = serial_port_init(device_name, speed);
+        pctx = serial_port_init(device_name, speed, stopbits);
     }
 
     return pctx;

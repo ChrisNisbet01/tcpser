@@ -13,6 +13,7 @@ void print_help(char* name) {
   fprintf(stderr, "       'm' = modem input\n");
   fprintf(stderr, "       'M' = modem output\n");
   fprintf(stderr, "       's' = serial input\n");
+  fprintf(stderr, "  -b   serial port stop bits (default 1)\n");
   fprintf(stderr, "       'S' = serial output\n");
   fprintf(stderr, "       'i' = IP input\n");
   fprintf(stderr, "       'I' = IP output\n");
@@ -45,7 +46,7 @@ int init(int argc,
          char **argv,
          modem_config cfg[],
          int max_modem,
-         char **ip_addr, 
+         char **ip_addr,
          char *all_busy,
          int all_busy_len
          ) {
@@ -60,10 +61,11 @@ int init(int argc,
   LOG_ENTER();
   mdm_init_config(&cfg[0]);
   cfg[0].dce_data.port_speed = 38400;
+  cfg[0].dce_data.stopbits = 1;
   cfg[0].line_speed = 38400;
 
   while(opt>-1 && i < max_modem) {
-    opt=getopt(argc, argv, "p:s:S:d:v:hw:i:Il:L:t:n:a:A:c:C:N:B:T:D:V");
+    opt=getopt(argc, argv, "p:s:b:S:d:v:hw:i:Il:L:t:n:a:A:c:C:N:B:T:D:V");
     switch(opt) {
       case 't':
         trace_flags = log_get_trace_flags();
@@ -138,6 +140,9 @@ int init(int argc,
         LOG(LOG_ALL, "Setting DTE speed to %d", cfg[i].dce_data.port_speed);
         if(dce_set == FALSE)
           cfg[i].line_speed = cfg[i].dce_data.port_speed;
+        break;
+      case 'b':
+        cfg[i].dce_data.stopbits = atoi(optarg);
         break;
       case '?':
       case 'h':
