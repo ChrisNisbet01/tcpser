@@ -13,7 +13,7 @@ void dce_init_config(dce_config *cfg) {
   cfg->parity = -1;  // parity not yet checked.
 }
 
-int detect_parity (int charA, int charT) {
+static int detect_parity (int charA, int charT) {
   int parity, eobits;
 
   parity = ((charA >> 6) & 2)  | (charT >> 7);

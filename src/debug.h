@@ -52,11 +52,11 @@
 int log_init(void);
 void log_set_file(FILE *a);
 void log_set_level(int a);
-int log_get_trace_flags();
+int log_get_trace_flags(void);
 void log_set_trace_flags(int a);
-void log_trace(int type, unsigned char *line, int len);
+void log_trace(int type, unsigned char const *line, int len);
 void log_start(int level);
-void log_end();
+void log_end(void);
 
 #endif
 #ifndef DEBUG_VARS

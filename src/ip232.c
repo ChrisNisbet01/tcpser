@@ -15,7 +15,7 @@
 #include "ip.h"
 #include "ip232.h"
 
-void *ip232_thread(void *arg) {
+static void *ip232_thread(void *arg) {
   dce_config *cfg = (dce_config *)arg;
   int rc;
   unsigned char buf[256];
@@ -61,6 +61,8 @@ void *ip232_thread(void *arg) {
     }
   }
   LOG_EXIT();
+
+  return NULL;
 }
 
 int ip232_init_conn(dce_config *cfg) {

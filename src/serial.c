@@ -13,7 +13,7 @@ int ser_get_bps_const(int speed) {
   int bps_rate = 0;
 
   LOG_ENTER();
-  
+
   LOG(LOG_DEBUG,"Checking speed: %d",speed);
 
   switch (speed) {
@@ -113,7 +113,7 @@ int ser_get_bps_const(int speed) {
       break;
 #endif /* B0 */
     default:
-      ELOG(LOG_FATAL, "Unknown baud rate"); 
+      ELOG(LOG_FATAL, "Unknown baud rate");
       bps_rate = -1;
   }
   LOG_EXIT();
@@ -137,11 +137,11 @@ int ser_init_conn(char *tty, int speed) {
     fd = open(tty, O_RDWR | O_NOCTTY | O_NONBLOCK);
 
     if (fd <0) {
-      ELOG(LOG_FATAL, "TTY %s could not be opened", tty); 
+      ELOG(LOG_FATAL, "TTY %s could not be opened", tty);
     } else {
       LOG(LOG_INFO, "Opened serial device %s at speed %d as fd %d", tty, speed, fd);
 
-      /* Make the file descriptor asynchronous (the manual page says only 
+      /* Make the file descriptor asynchronous (the manual page says only
          O_APPEND and O_NONBLOCK, will work with F_SETFL...) */
       fcntl(fd, F_SETFL, FASYNC);
 

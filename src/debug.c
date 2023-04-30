@@ -11,7 +11,7 @@ int trace_flags = 0;
 char *log_desc[LOG_TRACE + 1];
 pthread_mutex_t log_mutex;
 
-char *get_trace_type(int type) {
+static char *get_trace_type(int type) {
   switch(type) {
   case TRACE_MODEM_IN:
     return "RS<-";
@@ -60,11 +60,11 @@ void log_set_trace_flags(int a) {
   trace_flags = a;
 }
 
-int log_get_trace_flags() {
+int log_get_trace_flags(void) {
   return trace_flags;
 }
 
-void log_trace(int type, unsigned char *line, int len) {
+void log_trace(int type, unsigned char const *line, int len) {
   int i = 0;
   int ch;
   char data[64] = "\0";
@@ -128,7 +128,7 @@ void log_start(int level) {
   }
 }
 
-void log_end() {
+void log_end(void) {
   fprintf(log_file, "\n");
   fflush(log_file);
   if(-1 == pthread_mutex_unlock(&log_mutex)) {
