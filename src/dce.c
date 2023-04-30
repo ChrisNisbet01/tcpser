@@ -119,6 +119,20 @@ int dce_set_parity_databits(dce_config *cfg, unsigned val) {
   return rc;
 }
 
+int dce_set_speed(dce_config *cfg, unsigned speed) {
+  int rc = 0;
+
+  LOG_ENTER();
+
+  if (cfg->is_ip232) {
+  } else {
+    rc = cfg->serial->methods->set_speed(cfg->serial, speed);
+  }
+
+  LOG_EXIT()
+  return rc;
+}
+
 int dce_set_control_lines(dce_config *cfg, int state) {
   int rc;
 

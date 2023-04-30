@@ -63,6 +63,7 @@ int init(int argc,
   cfg[0].dce_data.port_speed = 38400;
   cfg[0].dce_data.stopbits = 1;
   cfg[0].line_speed = 38400;
+  cfg[0].line_speed_follows_port_speed = TRUE;
 
   while(opt>-1 && i < max_modem) {
     opt=getopt(argc, argv, "p:s:b:S:d:v:hw:i:Il:L:t:n:a:A:c:C:N:B:T:D:V");
@@ -140,6 +141,23 @@ int init(int argc,
         LOG(LOG_ALL, "Setting DTE speed to %d", cfg[i].dce_data.port_speed);
         if(dce_set == FALSE)
           cfg[i].line_speed = cfg[i].dce_data.port_speed;
+        int sval = 0;
+        switch (cfg[i].dce_data.port_speed) {
+          case 460800: sval = MDM_SPEED_460800; break;
+          case 230400: sval = MDM_SPEED_230400; break;
+          case 115200: sval = MDM_SPEED_115200; break;
+          case 57600: sval = MDM_SPEED_57600; break;
+          case 38400: sval = MDM_SPEED_38400; break;
+          case 19200: sval = MDM_SPEED_19200; break;
+          case 9600: sval = MDM_SPEED_9600; break;
+          case 4800: sval = MDM_SPEED_4800; break;
+          case 2400: sval = MDM_SPEED_2400; break;
+          case 1200: sval = MDM_SPEED_1200; break;
+          case 600: sval = MDM_SPEED_600; break;
+          case 300: sval = MDM_SPEED_300; break;
+          case 28800: sval = MDM_SPEED_28800; break;
+        }
+        cfg[i].s[S_REG_SPEED] = sval;
         break;
       case 'b':
         cfg[i].dce_data.stopbits = atoi(optarg);
@@ -177,6 +195,7 @@ int init(int argc,
       case 'S':
         cfg[i].line_speed = atoi(optarg);
         dce_set = TRUE;
+        cfg[i].line_speed_follows_port_speed = FALSE;
         break;
       case 'D':
         cfg[i].direct_conn = TRUE;

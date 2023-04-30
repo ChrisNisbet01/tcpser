@@ -108,6 +108,7 @@ void mdm_init_config(modem_config *cfg) {
   cfg->s[S_REG_CARRIER_LOSS] = 14;
   cfg->s[S_REG_DTMF_TIME] = 95;
   cfg->s[S_REG_GUARD_TIME] = 50;
+  cfg->s[S_REG_SPEED] = MDM_SPEED_38400;
 
   cfg->crlf[0] = cfg->s[S_REG_CR];
   cfg->crlf[1] = cfg->s[S_REG_LF];
@@ -472,6 +473,32 @@ int mdm_parse_cmd(modem_config* cfg) {
                 default:
                   cmd=AT_CMD_ERR;
                   break;
+              }
+              break;
+            case S_REG_SPEED:
+              unsigned speed = 0;
+              switch (cfg->s[S_REG_SPEED]) {
+                case MDM_SPEED_460800: speed = 460800; break;
+                case MDM_SPEED_230400: speed = 230400; break;
+                case MDM_SPEED_115200: speed = 115200; break;
+                case MDM_SPEED_57600: speed = 57600; break;
+                case MDM_SPEED_38400: speed = 38400; break;
+                case MDM_SPEED_19200: speed = 19200; break;
+                case MDM_SPEED_9600: speed = 9600; break;
+                case MDM_SPEED_4800: speed = 4800; break;
+                case MDM_SPEED_2400: speed = 2400; break;
+                case MDM_SPEED_1200: speed = 1200; break;
+                case MDM_SPEED_600: speed = 600; break;
+                case MDM_SPEED_300: speed = 300; break;
+                case MDM_SPEED_28800: speed = 28800; break;
+              }
+              if (speed) {
+                dce_set_speed(&cfg->dce_data, speed);
+                cfg->dce_data.port_speed = speed;
+                if (cfg->line_speed_follows_port_speed)
+                  cfg->line_speed = speed;
+              } else {
+                cmd=AT_CMD_ERR;
               }
               break;
           }

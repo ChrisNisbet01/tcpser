@@ -132,6 +132,18 @@ static int serial_port_set_parity_databits(serial_side_api_st *serial, int const
     return ser_set_parity_databits(device->fd, cflag);
 }
 
+static int serial_port_set_speed(serial_side_api_st *serial, int const speed)
+{
+    if (serial == NULL)
+    {
+        return -1;
+    }
+
+    serial_device * const device = container_of(serial, serial_device, api);
+
+    return ser_set_speed(device->fd, speed);
+}
+
 static int
 serial_port_get_control_lines(serial_side_api_st *serial)
 {
@@ -181,6 +193,7 @@ static serial_side_methods_st const serial_side_methods =
 
     .set_flow_control = serial_port_set_flow_control,
     .set_parity_databits = serial_port_set_parity_databits,
+    .set_speed = serial_port_set_speed,
     .get_control_lines = serial_port_get_control_lines,
     .set_control_lines = serial_port_set_control_lines,
     .read = serial_port_read

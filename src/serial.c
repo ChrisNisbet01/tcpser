@@ -211,6 +211,24 @@ int ser_set_parity_databits(int fd, unsigned cflag) {
   return 0;
 }
 
+int ser_set_speed(int fd, unsigned speed) {
+  struct termios tio;
+  if(0 != tcgetattr(fd, &tio)) {
+    ELOG(LOG_FATAL, "Could not get serial port attributes");
+    return -1;
+  }
+  int bps_rate = ser_get_bps_const(speed);
+  if (bps_rate > -1) {
+    cfsetispeed(&tio, bps_rate);
+    cfsetospeed(&tio, bps_rate);
+  }
+  if(0 != tcsetattr(fd, TCSANOW, &tio)) {
+    ELOG(LOG_FATAL,"Could not set serial port attributes");
+    return -1;
+  }
+  return 0;
+}
+
 int ser_get_control_lines(int fd) {
   int status;
 

@@ -38,6 +38,20 @@ typedef enum {
 #define MDM_PARITY_ODD_DATA_8 5
 #define MDM_PARITY_EVEN_DATA_8 6
 
+#define MDM_SPEED_460800 1
+#define MDM_SPEED_230400 2
+#define MDM_SPEED_115200 3
+#define MDM_SPEED_57600 4
+#define MDM_SPEED_38400 5
+#define MDM_SPEED_19200 6
+#define MDM_SPEED_9600 7
+#define MDM_SPEED_4800 8
+#define MDM_SPEED_2400 9
+#define MDM_SPEED_1200 10
+#define MDM_SPEED_600 11
+#define MDM_SPEED_300 12
+#define MDM_SPEED_28800 13
+
 #define MDM_CONN_NONE 0
 #define MDM_CONN_OUTGOING 1
 #define MDM_CONN_INCOMING 2
@@ -68,7 +82,8 @@ enum {
   S_REG_DTMF_TIME = 11,
   S_REG_GUARD_TIME = 12,
   S_REG_PARITY_DATABITS = 23,
-  S_REG_INACTIVITY_TIME = 30
+  S_REG_INACTIVITY_TIME = 30,
+  S_REG_SPEED = 31,
 };
 
 typedef struct modem_config {
@@ -89,6 +104,7 @@ typedef struct modem_config {
   dce_config dce_data;
   line_config line_data;
   int line_speed;
+  int line_speed_follows_port_speed;
   int conn_type;
   int is_ringing;
   int is_off_hook;
