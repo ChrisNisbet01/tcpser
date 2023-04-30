@@ -114,17 +114,11 @@ void log_trace(int type, unsigned char const *line, int len) {
 }
 
 void log_start(int level) {
-  char t[23];
-  time_t now;
-
   if(-1 == pthread_mutex_lock(&log_mutex)) {
     perror("Could not lock the log mutex");
   } else {
     // we have the lock.
-    now = time(NULL);
-    strftime(t, 22, "%Y-%m-%d %H:%M:%S", localtime(&now));
-    fprintf(log_file, "%s:%5.5ld:%s:", t, (long)pthread_self(), log_desc[level]);
-    //free(t);
+    fprintf(log_file, "%s: ", log_desc[level]);
   }
 }
 
