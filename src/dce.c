@@ -35,10 +35,12 @@ int dce_connect(dce_config *cfg) {
   if (cfg->is_ip232) {
     rc = ip232_init_conn(cfg);
   } else {
-    rc = ser_init_conn(cfg->tty, cfg->port_speed);
-    if(-1 < rc) {
-      cfg->is_connected = TRUE;
-      cfg->fd = rc;
+    cfg->serial = serial_side_create(cfg->tty, cfg->port_speed);
+    if (cfg->serial == NULL) {
+        rc = -1;
+    } else {
+        cfg->is_connected = TRUE;
+        rc = 1;
     }
   }
 
@@ -67,7 +69,7 @@ int dce_set_flow_control(dce_config *cfg, int opts) {
   if (cfg->is_ip232) {
     rc = ip232_set_flow_control(cfg, status);
   } else {
-    rc = ser_set_flow_control(cfg->fd, status);
+    rc = cfg->serial->methods->set_flow_control(cfg->serial, status);
   }
 
   LOG_EXIT()
@@ -92,7 +94,7 @@ int dce_set_control_lines(dce_config *cfg, int state) {
   if (cfg->is_ip232) {
     rc = ip232_set_control_lines(cfg, state);
   } else {
-    rc = ser_set_control_lines(cfg->fd, state);
+    rc = cfg->serial->methods->set_control_lines(cfg->serial, state);
   }
 
   LOG_EXIT();
@@ -105,7 +107,7 @@ int dce_get_control_lines(dce_config *cfg) {
   if (cfg->is_ip232) {
     state = ip232_get_control_lines(cfg);
   } else {
-    state = ser_get_control_lines(cfg->fd);
+    state = cfg->serial->methods->get_control_lines(cfg->serial);
   }
   return state;
 }
@@ -146,7 +148,7 @@ int dce_write(dce_config *cfg, unsigned char data[], int len) {
   } else {
     buf = data;
   }
-  rc = ser_write(cfg->fd, buf, len);
+  rc = cfg->serial->methods->write(cfg->serial, buf, len);
   if(cfg->parity)
     free(buf);
   return rc;
@@ -159,7 +161,7 @@ int dce_write_char_raw(dce_config *cfg, unsigned char data) {
   if (cfg->is_ip232) {
     rc = ip232_write(cfg, &data, 1);
   } else {
-    rc = ser_write(cfg->fd, &data, 1);
+    rc = cfg->serial->methods->write(cfg->serial, &data, 1);
   }
   return rc;
 }
@@ -171,7 +173,7 @@ int dce_read(dce_config *cfg, unsigned char data[], int len) {
   if (cfg->is_ip232) {
     res = ip232_read(cfg, data, len);
   } else {
-    res = ser_read(cfg->fd, data, len);
+    res = cfg->serial->methods->read(cfg->serial, data, len);
   }
   if(0 < res) {
     LOG(LOG_DEBUG, "Read %d bytes from serial port", res);
@@ -192,7 +194,7 @@ int dce_read_char_raw(dce_config *cfg) {
   if (cfg->is_ip232) {
     res = ip232_read(cfg, data, 1);
   } else {
-    res = ser_read(cfg->fd, data, 1);
+    res = cfg->serial->methods->read(cfg->serial, data, 1);
   }
   if(0 < res) {
     res = data[0];
@@ -212,5 +214,14 @@ int dce_strip_parity(dce_config *cfg, unsigned char data) {
 
 int dce_get_parity(dce_config *cfg) {
   return cfg->parity;
+}
+
+int dce_rx_fd(dce_config const * const cfg)
+{
+    if (cfg->is_ip232) {
+      return cfg->ip232.fd;
+    }
+
+    return  cfg->serial->methods->get_rx_fd(cfg->serial);
 }
 

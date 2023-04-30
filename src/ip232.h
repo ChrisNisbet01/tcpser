@@ -1,6 +1,8 @@
 #ifndef IP232_H
 #define IP232_H 1
 
+#include "dce.h"
+
 #ifndef TRUE
 #define TRUE 1
 #define FALSE 0

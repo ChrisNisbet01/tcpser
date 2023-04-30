@@ -1,6 +1,8 @@
 #ifndef DCE_H
 #define DCE_H 1
 
+#include "serial_side.h"
+
 #define DCE_CL_DSR 1
 #define DCE_CL_DCD 2
 #define DCE_CL_CTS 4
@@ -30,18 +32,23 @@ enum {
   PARITY_MARK
 };
 
+typedef struct ip232 {
+  int dtr;
+  int dcd;
+  int iac;
+  int fd;
+} ip232;
+
 typedef struct dce_config {
+  char tty[256];
   int port_speed;
   int parity;
-  int is_ip232;
-  char tty[256];
-  int fd;
   int dp[2][2];
   int sSocket;
   int is_connected;
-  int ip232_dtr;
-  int ip232_dcd;
-  int ip232_iac;
+  int is_ip232;
+  ip232 ip232;
+  serial_side_api_st *serial; /* Used when !is_ip232. */
 } dce_config;
 
 void dce_init_config(dce_config *cfg);
@@ -57,6 +64,8 @@ int dce_read_char_raw(dce_config *cfg);
 void dce_detect_parity(dce_config *cfg, unsigned char a, unsigned char t);
 int dce_strip_parity(dce_config *cfg, unsigned char data);
 int dce_get_parity(dce_config *cfg);
+int dce_rx_fd(dce_config const * cfg);
+
 //int dce_check_for_break(dce_config *cfg, char ch, int chars_left);
 
 #endif

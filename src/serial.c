@@ -121,7 +121,7 @@ int ser_get_bps_const(int speed) {
 
 }
 
-int ser_init_conn(char *tty, int speed) {
+int ser_init_conn(char const *tty, int speed) {
   int fd = -1;
   struct termios tio;
   int bps_rate = 0;
@@ -224,7 +224,7 @@ int ser_set_control_lines(int fd, int state) {
   return 0;
 }
 
-int ser_write(int fd, unsigned char* data, int len) {
+int ser_write(int fd, unsigned char const * data, int len) {
   log_trace(TRACE_MODEM_OUT, data, len);
   return write(fd, data, len);
 }

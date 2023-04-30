@@ -335,8 +335,8 @@ void *bridge_task(void *arg) {
     max_fd = cfg->mp[1][0];
     FD_SET(cfg->mp[1][0], &readfs);
     if(cfg->dce_data.is_connected) {
-      max_fd = MAX(max_fd, cfg->dce_data.fd);
-      FD_SET(cfg->dce_data.fd, &readfs);
+      max_fd = MAX(max_fd, dce_rx_fd(&cfg->dce_data));
+      FD_SET(dce_rx_fd(&cfg->dce_data), &readfs);
     }
     max_fd = MAX(max_fd, cfg->wp[0][0]);
     FD_SET(cfg->wp[0][0], &readfs);
@@ -396,7 +396,7 @@ void *bridge_task(void *arg) {
       } else
         mdm_handle_timeout(cfg);
     }
-    if (FD_ISSET(cfg->dce_data.fd, &readfs)) {  // serial port
+    if (FD_ISSET(dce_rx_fd(&cfg->dce_data), &readfs)) {  // serial port
       LOG(LOG_DEBUG, "Data available on serial port");
       res = mdm_read(cfg, buf, sizeof(buf));
       if(res > 0) {
