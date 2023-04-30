@@ -12,7 +12,6 @@
 #include "nvt.h"
 #include "modem_core.h"
 #include "ip.h"
-#include "getcmd.h"
 
 #include "bridge.h"
 
@@ -115,10 +114,10 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
             break;
           case NVT_SB:      // sub negotiation
             // again, overflow...
-            i += parse_nvt_subcommand(&cfg->dce_data, 
-                                      cfg->line_data.fd, 
-                                      &cfg->line_data.nvt_data, 
-                                      data + i, 
+            i += parse_nvt_subcommand(&cfg->dce_data,
+                                      cfg->line_data.fd,
+                                      &cfg->line_data.nvt_data,
+                                      data + i,
                                       len - i
                                      );
             break;
@@ -151,7 +150,7 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
   return 0;
 }
 
-void *ip_thread(void *arg) {
+static void *ip_thread(void *arg) {
   modem_config* cfg = (modem_config *)arg;
 
   int action_pending = FALSE;
@@ -173,7 +172,7 @@ void *ip_thread(void *arg) {
        && cfg->line_data.fd > -1
        && cfg->line_data.is_connected == TRUE
       ) {
-      FD_SET(cfg->line_data.fd, &readfs); 
+      FD_SET(cfg->line_data.fd, &readfs);
       max_fd=MAX(max_fd, cfg->line_data.fd);
     }
     max_fd++;
@@ -206,9 +205,11 @@ void *ip_thread(void *arg) {
     }
   }
   LOG_EXIT();
+
+  return NULL;
 }
 
-void *ctrl_thread(void *arg) {
+static void *ctrl_thread(void *arg) {
   modem_config* cfg = (modem_config *)arg;
   int status;
   int new_status;
@@ -247,8 +248,8 @@ void *ctrl_thread(void *arg) {
 
 void *bridge_task(void *arg) {
   modem_config *cfg = (modem_config *)arg;
-  struct timeval timer;  
-  struct timeval *ptimer;  
+  struct timeval timer;
+  struct timeval *ptimer;
   int max_fd = 0;
   fd_set readfs;
   int res = 0;
@@ -392,7 +393,7 @@ void *bridge_task(void *arg) {
           //mdm_disconnect(cfg, FALSE); // not sure need to do a disconnect here, no connection
         } else
           mdm_send_ring(cfg);
-      } else 
+      } else
         mdm_handle_timeout(cfg);
     }
     if (FD_ISSET(cfg->dce_data.fd, &readfs)) {  // serial port
