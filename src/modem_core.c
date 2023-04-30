@@ -5,32 +5,35 @@
 #include "debug.h"
 #include "modem_core.h"
 
-char* mdm_responses[MDM_RESP_END_OF_LIST];
+static char const * mdm_responses[MDM_RESP_END_OF_LIST] = {
 
-void mdm_init(void) {
-  mdm_responses[MDM_RESP_OK] =             "OK";
-  mdm_responses[MDM_RESP_RING] =           "RING";
-  mdm_responses[MDM_RESP_ERROR] =          "ERROR";
-  mdm_responses[MDM_RESP_CONNECT] =        "CONNECT";
-  mdm_responses[MDM_RESP_NO_CARRIER] =     "NO CARRIER";
-  mdm_responses[MDM_RESP_CONNECT_1200] =   "CONNECT 1200";
-  mdm_responses[MDM_RESP_NO_DIALTONE] =    "NO DIALTONE";
-  mdm_responses[MDM_RESP_BUSY] =           "BUSY";
-  mdm_responses[MDM_RESP_NO_ANSWER] =      "NO ANSWER";
-  mdm_responses[MDM_RESP_CONNECT_0600] =   "CONNECT 0600";
-  mdm_responses[MDM_RESP_CONNECT_2400] =   "CONNECT 2400";
-  mdm_responses[MDM_RESP_CONNECT_4800] =   "CONNECT 4800";
-  mdm_responses[MDM_RESP_CONNECT_9600] =   "CONNECT 9600";
-  mdm_responses[MDM_RESP_CONNECT_7200] =   "CONNECT 7200";
-  mdm_responses[MDM_RESP_CONNECT_12000] =  "CONNECT 12000";
-  mdm_responses[MDM_RESP_CONNECT_14400] =  "CONNECT 14400";
-  mdm_responses[MDM_RESP_CONNECT_19200] =  "CONNECT 19200";
-  mdm_responses[MDM_RESP_CONNECT_38400] =  "CONNECT 38400";
-  mdm_responses[MDM_RESP_CONNECT_57600] =  "CONNECT 57600";
-  mdm_responses[MDM_RESP_CONNECT_115200] = "CONNECT 115200";
-  mdm_responses[MDM_RESP_CONNECT_230400]=  "CONNECT 230400";
-  mdm_responses[MDM_RESP_CONNECT_460800] = "CONNECT 460800";
-  mdm_responses[MDM_RESP_CONNECT_921600] = "CONNECT 921600";
+    [MDM_RESP_OK] =             "OK",
+    [MDM_RESP_RING] =           "RING",
+    [MDM_RESP_ERROR] =          "ERROR",
+    [MDM_RESP_CONNECT] =        "CONNECT",
+    [MDM_RESP_NO_CARRIER] =     "NO CARRIER",
+    [MDM_RESP_CONNECT_1200] =   "CONNECT 1200",
+    [MDM_RESP_NO_DIALTONE] =    "NO DIALTONE",
+    [MDM_RESP_BUSY] =           "BUSY",
+    [MDM_RESP_NO_ANSWER] =      "NO ANSWER",
+    [MDM_RESP_CONNECT_0600] =   "CONNECT 0600",
+    [MDM_RESP_CONNECT_2400] =   "CONNECT 2400",
+    [MDM_RESP_CONNECT_4800] =   "CONNECT 4800",
+    [MDM_RESP_CONNECT_9600] =   "CONNECT 9600",
+    [MDM_RESP_CONNECT_7200] =   "CONNECT 7200",
+    [MDM_RESP_CONNECT_12000] =  "CONNECT 12000",
+    [MDM_RESP_CONNECT_14400] =  "CONNECT 14400",
+    [MDM_RESP_CONNECT_19200] =  "CONNECT 19200",
+    [MDM_RESP_CONNECT_38400] =  "CONNECT 38400",
+    [MDM_RESP_CONNECT_57600] =  "CONNECT 57600",
+    [MDM_RESP_CONNECT_115200] = "CONNECT 115200",
+    [MDM_RESP_CONNECT_230400] =  "CONNECT 230400",
+    [MDM_RESP_CONNECT_460800] = "CONNECT 460800",
+    [MDM_RESP_CONNECT_921600] = "CONNECT 921600"
+};
+
+void mdm_init(void)
+{
 }
 
 modem_response get_connect_response(int speed, int level) {
@@ -157,7 +160,7 @@ int mdm_set_control_lines(modem_config *cfg) {
   state |= get_new_dsr_state(cfg, up);
   state |= get_new_dcd_state(cfg, up);
 
-  LOG(LOG_INFO, 
+  LOG(LOG_INFO,
       "Control Lines: DSR:%d DCD:%d CTS:%d",
       ((state & DCE_CL_DSR) != 0 ? 1 : 0),
       ((state & DCE_CL_DCD) != 0 ? 1 : 0),
@@ -478,13 +481,13 @@ int mdm_parse_cmd(modem_config* cfg) {
         }
         break;
       case 'W':
-          if(num > -1 && num < 3) 
+          if(num > -1 && num < 3)
             cfg->connect_response = num;
           else
             cmd = AT_CMD_ERR;
           break;
       case 'X':
-          if(num > -1 && num < 5) 
+          if(num > -1 && num < 5)
             cfg->response_code_level = num;
           else
             cmd = AT_CMD_ERR;
