@@ -49,7 +49,8 @@ int dce_connect(dce_config *cfg) {
 }
 
 int dce_set_flow_control(dce_config *cfg, int opts) {
-  int status = 0;
+  unsigned iflag = 0;
+  unsigned cflag = 0;
   int rc = 0;
 
   LOG_ENTER();
@@ -58,18 +59,18 @@ int dce_set_flow_control(dce_config *cfg, int opts) {
   } else {
     if((opts & MDM_FC_RTS) != 0) {
       LOG(LOG_ALL, "Setting RTSCTS flow control");
-      status |= CRTSCTS;
+      cflag |= CRTSCTS;
     }
     if((opts & MDM_FC_XON) != 0) {
-      status |= (IXON | IXOFF);
+      iflag |= (IXON | IXOFF);
       LOG(LOG_ALL, "Setting XON/XOFF flow control");
     }
   }
 
   if (cfg->is_ip232) {
-    rc = ip232_set_flow_control(cfg, status);
+    rc = ip232_set_flow_control(cfg, iflag, cflag);
   } else {
-    rc = cfg->serial->methods->set_flow_control(cfg->serial, status);
+    rc = cfg->serial->methods->set_flow_control(cfg->serial, iflag, cflag);
   }
 
   LOG_EXIT()

@@ -13,7 +13,7 @@
 
 int ser_get_bps_const(int speed);
 int ser_init_conn(char const *tty, int speed);
-int ser_set_flow_control(int fd, int status);
+int ser_set_flow_control(int fd, unsigned iflag, unsigned cflag);
 int ser_get_control_lines(int fd);
 int ser_set_control_lines(int fd, int state);
 int ser_write(int fd, unsigned char const *data,int len);

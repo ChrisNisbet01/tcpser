@@ -161,7 +161,7 @@ done:
 }
 
 static int
-terminal_set_flow_control(serial_side_api_st *serial, int status)
+terminal_set_flow_control(serial_side_api_st *serial, int const iflag, int const cflag)
 {
     return 0;
 }

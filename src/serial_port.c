@@ -108,7 +108,7 @@ done:
 }
 
 static int
-serial_port_set_flow_control(serial_side_api_st *serial, int status)
+serial_port_set_flow_control(serial_side_api_st *serial, int const iflag, int const cflag)
 {
     if (serial == NULL)
     {
@@ -117,7 +117,7 @@ serial_port_set_flow_control(serial_side_api_st *serial, int status)
 
     serial_device * const device = container_of(serial, serial_device, api);
 
-    return ser_set_flow_control(device->fd, status);
+    return ser_set_flow_control(device->fd, iflag, cflag);
 }
 
 static int

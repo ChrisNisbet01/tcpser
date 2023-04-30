@@ -95,7 +95,7 @@ int ip232_init_conn(dce_config *cfg) {
 }
 
 
-int ip232_set_flow_control(dce_config *cfg, int status) {
+int ip232_set_flow_control(dce_config *cfg, unsigned iflag, unsigned cflag) {
   return 0;
 }
 

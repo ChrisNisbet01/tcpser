@@ -176,15 +176,17 @@ int ser_init_conn(char const *tty, int speed) {
   return fd;
 }
 
-int ser_set_flow_control(int fd, int status) {
+int ser_set_flow_control(int fd, unsigned iflag, unsigned cflag) {
   struct termios tio;
   if(0 != tcgetattr(fd, &tio)) {
     ELOG(LOG_FATAL, "Could not get serial port attributes");
     return -1;
   }
   // turn all off.
-  tio.c_cflag &= ~(IXON | IXOFF | CRTSCTS);
-  tio.c_cflag |= status;
+  tio.c_iflag &= ~(IXON | IXOFF);
+  tio.c_cflag &= ~CRTSCTS;
+  tio.c_iflag |= iflag;
+  tio.c_cflag |= cflag;
   if(0 != tcsetattr(fd, TCSANOW, &tio)) {
     ELOG(LOG_FATAL,"Could not set serial port attributes");
     return -1;

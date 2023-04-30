@@ -15,7 +15,7 @@ typedef int (*serial_side_rx_fd_fn)(serial_side_api_st * serial);
 typedef ssize_t (*serial_side_write_fn)(
     serial_side_api_st * serial, void const * data, size_t data_length);
 
-typedef int (* ser_set_flow_control_fn)(serial_side_api_st * serial, int status);
+typedef int (* ser_set_flow_control_fn)(serial_side_api_st * serial, int iflag, int cflag);
 typedef int (* ser_get_control_lines_fn)(serial_side_api_st * serial);
 typedef int (* ser_set_control_lines_fn)(serial_side_api_st * serial, int state);
 typedef int (* ser_read_fn)(serial_side_api_st * serial,  unsigned char *data, int len);
