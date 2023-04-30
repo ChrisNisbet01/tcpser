@@ -47,10 +47,12 @@ int main(int argc, char *argv[]) {
   signal(SIGIO, SIG_IGN); /* Some Linux variant term on SIGIO by default */
 
   modem_count = init(argc, argv, cfg, MAX_MODEMS, &ip_addr, all_busy, sizeof(all_busy));
-  sSocket = ip_init_server_conn(ip_addr, 6400);
-  if(-1 == sSocket) {
-    ELOG(LOG_FATAL, "Could not listen on %s", ip_addr);
-    exit (-1);
+  if (ip_addr != NULL) {
+    sSocket = ip_init_server_conn(ip_addr, 6400);
+    if(-1 == sSocket) {
+      ELOG(LOG_FATAL, "Could not listen on %s", ip_addr);
+      exit (-1);
+    }
   }
 
   for(i = 0; i < modem_count; i++) {
@@ -76,7 +78,7 @@ int main(int argc, char *argv[]) {
       FD_SET(cfg[i].mp[0][0], &readfs);
       max_fd=MAX(max_fd, cfg[i].mp[0][0]);
     }
-    if(accept_pending == FALSE) {
+    if(ip_addr != NULL && accept_pending == FALSE) {
       max_fd=MAX(max_fd, sSocket);
       FD_SET(sSocket, &readfs); 
     }
@@ -92,7 +94,7 @@ int main(int argc, char *argv[]) {
         }
       }
     }
-    if (FD_ISSET(sSocket, &readfs)) {  // IP traffic
+    if (ip_addr != NULL && FD_ISSET(sSocket, &readfs)) {  // IP traffic
       if(!accept_pending) {
         LOG(LOG_DEBUG, "Incoming connection pending");
         // first try for a modem that is listening.
