@@ -192,6 +192,7 @@ static void *ip_thread(void *arg) {
           action_pending = TRUE;
         } else {
           LOG(LOG_DEBUG, "Read %d bytes from socket", res);
+          writePipe(cfg->cp[0][1], 0); /* reset inactivity timer */
           buf[res] = 0;
           parse_ip_data(cfg, buf, res);
         }
