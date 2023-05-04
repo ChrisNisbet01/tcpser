@@ -1,6 +1,8 @@
 #ifndef MODEM_CORE_H
 #define MODEM_CORE_H 1
 
+#include <libubox/uloop.h>
+
 typedef enum {
   MDM_RESP_OK =             0,
   MDM_RESP_CONNECT =        1,
@@ -89,8 +91,13 @@ enum {
 typedef struct modem_config {
   // master configuration information
   int mp[2][2];
+  struct uloop_fd mp_ufd[2];
   int cp[2][2];
+  struct uloop_fd cp_ufd[2];
   int wp[2][2];
+  struct uloop_fd wp_ufd[2];
+  struct uloop_fd sSocket_ufd;
+
   char no_answer[256];
   char local_connect[256];
   char remote_connect[256];

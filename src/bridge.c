@@ -247,6 +247,35 @@ static void *ctrl_thread(void *arg) {
   exit(-1);
 }
 
+static void bridge_task_outgoing_ipc_handler(struct uloop_fd * u, unsigned int events)
+{
+    modem_config * const cfg = container_of(u, modem_config, mp_ufd[1]);
+
+    LOG_ENTER();
+
+    if (u->eof || u->error)
+    {
+        uloop_fd_delete(u);
+        goto done;
+    }
+
+    LOG(LOG_DEBUG, "Data available on incoming IPC pipe");
+    unsigned char buf[256];
+    int const res = readPipe(cfg->mp[1][0], buf, sizeof(buf));
+    if (res > 0)
+    {
+        switch (buf[0])
+        {
+          case MSG_CALLING:       // accept connection.
+            accept_connection(cfg);
+            break;
+        }
+    }
+
+done:
+    LOG_EXIT();
+}
+
 void *bridge_task(void *arg) {
   modem_config *cfg = (modem_config *)arg;
   struct timeval timer;
@@ -262,6 +291,10 @@ void *bridge_task(void *arg) {
 
 
   LOG_ENTER();
+
+  cfg->mp_ufd[1].cb = bridge_task_outgoing_ipc_handler;
+  cfg->mp_ufd[1].fd = cfg->mp[1][0];
+  uloop_fd_add(&cfg->mp_ufd[1], ULOOP_READ);
 
   if(-1 == pipe(cfg->wp[0])) {
     ELOG(LOG_FATAL, "Control line watch task incoming IPC pipe could not be created");

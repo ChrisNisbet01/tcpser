@@ -11,7 +11,7 @@ OBJS += $(TERMINAL_SUPPORT_OBJS)
 CC = gcc
 DEF = 
 CFLAGS = -O $(DEF) -Wall
-LDFLAGS = -lpthread
+LDFLAGS = -lpthread -lubox
 DEPEND = makedepend $(DEF) $(CFLAGS)
 
 all:	tcpser
