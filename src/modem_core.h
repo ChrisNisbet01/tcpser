@@ -98,6 +98,7 @@ typedef struct modem_config {
   struct uloop_fd wp_ufd[2];
   struct uloop_fd sSocket_ufd;
 
+  struct uloop_timeout ctrl_thread_timer;
   char no_answer[256];
   char local_connect[256];
   char remote_connect[256];

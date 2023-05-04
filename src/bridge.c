@@ -150,101 +150,138 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
   return 0;
 }
 
-static void *ip_thread(void *arg) {
-  modem_config* cfg = (modem_config *)arg;
+static int action_pending = FALSE;
 
-  int action_pending = FALSE;
-  fd_set readfs;
-  int max_fd;
-  int res = 0;
-  unsigned char buf[256];
-  int rc;
+static void line_data_cb(struct uloop_fd * u, unsigned int events)
+{
+    modem_config * const cfg = container_of(u, modem_config, line_data.ufd);
 
+    LOG_ENTER();
 
-  LOG_ENTER();
-  while(TRUE) {
-    FD_ZERO(&readfs);
-    FD_SET(cfg->cp[1][0], &readfs);
-    max_fd = cfg->cp[1][0];
-    if(action_pending == FALSE
-       && cfg->conn_type != MDM_CONN_NONE
-       && cfg->is_cmd_mode == FALSE
-       && cfg->line_data.fd > -1
-       && cfg->line_data.is_connected == TRUE
-      ) {
-      FD_SET(cfg->line_data.fd, &readfs);
-      max_fd=MAX(max_fd, cfg->line_data.fd);
+    if (u->eof || u->error)
+    {
+        uloop_fd_delete(u);
+        goto done;
     }
-    max_fd++;
-    rc = select(max_fd, &readfs, NULL, NULL, NULL);
-    if(rc == -1) {
-      ELOG(LOG_WARN, "Select returned error");
-      // handle error
-    } else {
-      // we got data
-      if (cfg->line_data.is_connected == TRUE && FD_ISSET(cfg->line_data.fd, &readfs)) {  // socket
-        LOG(LOG_DEBUG, "Data available on socket");
-        res = line_read(&cfg->line_data, buf, sizeof(buf));
-        //res = recv(cfg->line_data.fd, buf, sizeof(buf), 0);
-        if(0 >= res) {
-          LOG(LOG_INFO, "No socket data read, assume closed peer");
-          writePipe(cfg->cp[0][1], MSG_DISCONNECT);
-          action_pending = TRUE;
-        } else {
-          LOG(LOG_DEBUG, "Read %d bytes from socket", res);
-          writePipe(cfg->cp[0][1], 0); /* reset inactivity timer */
-          buf[res] = 0;
-          parse_ip_data(cfg, buf, res);
-        }
-      }
-      if (FD_ISSET(cfg->cp[1][0], &readfs)) {  // pipe
 
-        res = readPipe(cfg->cp[1][0], buf, sizeof(buf) - 1);
-        LOG(LOG_DEBUG, "IP thread notified");
-        action_pending = FALSE;
+    unsigned char buf[256];
+    if (cfg->line_data.is_connected == TRUE) {
+      LOG(LOG_DEBUG, "Data available on socket");
+      res = line_read(&cfg->line_data, buf, sizeof(buf) - 1);
+      if(0 >= res) {
+        LOG(LOG_INFO, "No socket data read, assume closed peer");
+        writePipe(cfg->cp[0][1], MSG_DISCONNECT);
+        action_pending_change(cfg, true);
+      } else {
+        LOG(LOG_DEBUG, "Read %d bytes from socket", res);
+        writePipe(cfg->cp[0][1], 0); /* reset inactivity timer */
+        buf[res] = '\0';
+        parse_ip_data(cfg, buf, res);
       }
     }
-  }
-  LOG_EXIT();
 
-  return NULL;
+done:
+    LOG_EXIT();
 }
 
-static void *ctrl_thread(void *arg) {
-  modem_config* cfg = (modem_config *)arg;
-  int status;
-  int new_status;
+static void
+control_pipe_1_read(struct uloop_fd * u, unsigned int events)
+{
+    modem_config * const cfg = container_of(u, modem_config, cp_ufd[1]);
+    unsigned char buf[256];
 
-  LOG_ENTER();
-  status = dce_get_control_lines(&cfg->dce_data);
-  while(status > -1) {
-    new_status = dce_check_control_lines(&cfg->dce_data);
-    if(new_status > -1 && status != new_status) {
-      LOG(LOG_DEBUG, "Control Line Change");
-      if((new_status & DCE_CL_DTR) != (status & DCE_CL_DTR)) {
-        if((new_status & DCE_CL_DTR)) {
-          LOG(LOG_INFO, "DTR has gone high");
-          writePipe(cfg->wp[0][1], MSG_DTR_UP);
-        } else {
-          LOG(LOG_INFO, "DTR has gone low");
-          writePipe(cfg->wp[0][1], MSG_DTR_DOWN);
-        }
-      }
-      if((new_status & DCE_CL_LE) != (status & DCE_CL_LE)) {
-        if((new_status & DCE_CL_LE)) {
-          LOG(LOG_INFO, "Link has come up");
-          writePipe(cfg->wp[0][1], MSG_LE_UP);
-        } else {
-          LOG(LOG_INFO, "Link has gone down");
-          writePipe(cfg->wp[0][1], MSG_LE_DOWN);
-        }
-      }
+    res = readPipe(cfg->cp[1][0], buf, sizeof(buf) - 1);
+    LOG(LOG_DEBUG, "IP thread notified");
+    action_pending_change(cfg, false);
+}
+
+static void
+action_pending_change(modem_config * cfg, bool new_action_pending)
+{
+    action_pending = new_action_pending;
+
+    if (!action_pending
+        && cfg->conn_type != MDM_CONN_NONE
+        && cfg->is_cmd_mode == FALSE
+        && cfg->line_data.fd > -1
+        && cfg->line_data.is_connected == TRUE
+        )
+    {
+        cfg->line_data.ufd.cb = line_data_cb;
+        cfg->line_data.ufd.fd = cfg->line_data.fd;
+        uloop_fd_add(&cfg->line_data.ufd, ULOOP_READ);
     }
-    status = new_status;
-  }
+    else
+    {
+        uloop_fd_delete(&cfg->line_data.ufd);
+    }
+}
+
+static void
+ip_thread(modem_config* cfg)
+{
+  LOG_ENTER();
+  action_pending_change(cfg, action_pending);
+  cfg->cp_ufd[1].cb = control_pipe_1_read;
+  cfg->cp_ufd[1].fd = cfg->cp[1][0];
+  uloop_fd_add(&cfg->cp_ufd[1], ULOOP_READ);
   LOG_EXIT();
-  // need to quit application, as status cannot be obtained.
-  exit(-1);
+}
+
+static int status = -1;
+
+static void
+ctrl_thread(modem_config * cfg)
+{
+    int const new_status = dce_check_control_lines(&cfg->dce_data);
+
+    if (new_status > -1 && status != new_status)
+    {
+        LOG(LOG_DEBUG, "Control Line Change");
+        if ((new_status & DCE_CL_DTR) != (status & DCE_CL_DTR))
+        {
+            if ((new_status & DCE_CL_DTR))
+            {
+                LOG(LOG_INFO, "DTR has gone high");
+                writePipe(cfg->wp[0][1], MSG_DTR_UP);
+            }
+            else
+            {
+                LOG(LOG_INFO, "DTR has gone low");
+                writePipe(cfg->wp[0][1], MSG_DTR_DOWN);
+            }
+        }
+        if ((new_status & DCE_CL_LE) != (status & DCE_CL_LE))
+        {
+            if ((new_status & DCE_CL_LE))
+            {
+                LOG(LOG_INFO, "Link has come up");
+                writePipe(cfg->wp[0][1], MSG_LE_UP);
+            }
+            else
+            {
+                LOG(LOG_INFO, "Link has gone down");
+                writePipe(cfg->wp[0][1], MSG_LE_DOWN);
+            }
+        }
+    }
+
+    status = new_status;
+    if (status < 0)
+    {
+        /* Can't obtain status, so exit the program. */
+        uloop_done();
+    }
+}
+
+static void
+ctrl_thread_timer_cb(struct uloop_timeout * const t)
+{
+    modem_config * const cfg = container_of(t, modem_config, ctrl_thread_timer);
+
+    ctrl_thread(cfg);
+    t->cb = ctrl_thread_timer_cb;
+    uloop_timeout_set(t, 100);
 }
 
 static void bridge_task_outgoing_ipc_handler(struct uloop_fd * u, unsigned int events)
@@ -276,7 +313,45 @@ done:
     LOG_EXIT();
 }
 
-void *bridge_task(void *arg) {
+static int last_conn_type;
+static int last_cmd_mode;
+
+static void
+check_connection_type_change(modem_config * const cfg)
+{
+    if(last_conn_type != cfg->conn_type) {
+      LOG(LOG_ALL, "Connection status change, handling");
+      writePipe(cfg->cp[1][1], MSG_NOTIFY);
+      if(cfg->conn_type == MDM_CONN_OUTGOING) {
+        if(strlen(cfg->local_connect) > 0) {
+          writeFile(cfg->local_connect, cfg->line_data.fd);
+        }
+        if(strlen(cfg->remote_connect) > 0) {
+          writeFile(cfg->remote_connect, cfg->line_data.fd);
+        }
+      } else if(cfg->conn_type == MDM_CONN_INCOMING) {
+        if(strlen(cfg->local_answer) > 0) {
+          writeFile(cfg->local_answer, cfg->line_data.fd);
+        }
+        if(strlen(cfg->remote_answer) > 0) {
+          writeFile(cfg->remote_answer, cfg->line_data.fd);
+        }
+      }
+      last_conn_type = cfg->conn_type;
+    }
+}
+
+static void
+check_command_mode_change(modem_config * const cfg)
+{
+    if(last_cmd_mode != cfg->is_cmd_mode) {
+      writePipe(cfg->cp[1][1], MSG_NOTIFY);
+      last_cmd_mode = cfg->is_cmd_mode;
+    }
+}
+
+bridge_task(modem_config *cfg)
+{
   modem_config *cfg = (modem_config *)arg;
   struct timeval timer;
   struct timeval *ptimer;
@@ -286,9 +361,7 @@ void *bridge_task(void *arg) {
   unsigned char buf[256];
   int rc = 0;
 
-  int last_conn_type;
-  int last_cmd_mode = cfg->is_cmd_mode;
-
+  last_cmd_mode = cfg->is_cmd_mode;
 
   LOG_ENTER();
 
@@ -313,8 +386,8 @@ void *bridge_task(void *arg) {
     exit(-1);
   }
 
-  spawn_thread((void *)ctrl_thread, (void *)cfg, "CTRL");
-  spawn_thread((void *)ip_thread, (void *)cfg, "IP");
+  ctrl_thread_timer_cb(&cfg->ctrl_thread_timer);
+  ip_thread(cfg);
 
   mdm_set_control_lines(cfg);
   last_conn_type = cfg->conn_type;
@@ -338,31 +411,10 @@ void *bridge_task(void *arg) {
     }
   }
   cfg->allow_transmit = TRUE;
+
   for(;;) {
-    if(last_conn_type != cfg->conn_type) {
-      LOG(LOG_ALL, "Connection status change, handling");
-      writePipe(cfg->cp[1][1], MSG_NOTIFY);
-      if(cfg->conn_type == MDM_CONN_OUTGOING) {
-        if(strlen(cfg->local_connect) > 0) {
-          writeFile(cfg->local_connect, cfg->line_data.fd);
-        }
-        if(strlen(cfg->remote_connect) > 0) {
-          writeFile(cfg->remote_connect, cfg->line_data.fd);
-        }
-      } else if(cfg->conn_type == MDM_CONN_INCOMING) {
-        if(strlen(cfg->local_answer) > 0) {
-          writeFile(cfg->local_answer, cfg->line_data.fd);
-        }
-        if(strlen(cfg->remote_answer) > 0) {
-          writeFile(cfg->remote_answer, cfg->line_data.fd);
-        }
-      }
-      last_conn_type = cfg->conn_type;
-    }
-    if(last_cmd_mode != cfg->is_cmd_mode) {
-      writePipe(cfg->cp[1][1], MSG_NOTIFY);
-      last_cmd_mode = cfg->is_cmd_mode;
-    }
+      check_connection_type_change(cfg);
+      check_command_mode_change(cfg);
     LOG(LOG_ALL, "Waiting for modem/control line/timer/socket activity");
     LOG(LOG_ALL, "CMD:%d, DCE:%d, LINE:%d, TYPE:%d, HOOK:%d", cfg->is_cmd_mode, cfg->dce_data.is_connected, cfg->line_data.is_connected, cfg->conn_type, cfg->is_off_hook);
     FD_ZERO(&readfs);

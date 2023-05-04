@@ -2,9 +2,11 @@
 #define LINE_H 1
 
 #include "nvt.h"
+#include <libubox/uloop.h>
 
 typedef struct line_config {
   int fd;
+  struct uloop_fd ufd;
   int sfd;
   int is_connected;
   int is_telnet;
