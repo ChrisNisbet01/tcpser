@@ -39,7 +39,7 @@ int dce_connect(dce_config *cfg) {
     if (cfg->serial == NULL) {
         rc = -1;
     } else {
-        cfg->is_connected = TRUE;
+        cfg->is_connected = true;
         rc = 1;
     }
   }

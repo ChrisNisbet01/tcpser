@@ -24,7 +24,7 @@ int getData(char line[],
       case ' ':
         if(!complex_parse && *index != *data_start) {
           // leave space, next call will skip it.
-          done = TRUE;
+          done = true;
         } else if(*index != *data_start) {
           // we are complex, add the space and continue.
           (*index)++;
@@ -35,7 +35,7 @@ int getData(char line[],
         }
         break;
       case 0:
-        done = TRUE;
+        done = true;
         break;
       case '0':
       case '1':
@@ -52,10 +52,10 @@ int getData(char line[],
       default:
         if(!complex_parse && *index != *data_start && 0 == alpha) {
           // we were a number, but we've hit an alpha 'S0=137S...'
-          done = TRUE;
+          done = true;
         } else {
           (*index)++;
-          alpha = TRUE;
+          alpha = true;
         }
         break;
     }
@@ -233,7 +233,7 @@ int getcmd(char line[],
             case 0:
               return AT_CMD_ERR;
             case 'Z':
-              return parseRegister(line, AT_CMD_FLAG_EXT, index, num, len, data_start, data_end, TRUE);
+              return parseRegister(line, AT_CMD_FLAG_EXT, index, num, len, data_start, data_end, true);
             default:
               return parseCommand(line, AT_CMD_FLAG_EXT, index, num, len);
           }
@@ -253,7 +253,7 @@ int getcmd(char line[],
               *num = toupper(line[*index]);
               (*index)++;
             default:
-              getData(line, index, len, data_start, data_end, TRUE);
+              getData(line, index, len, data_start, data_end, true);
               return cmd;
           }
           (*index)++;

@@ -72,7 +72,7 @@ int line_accept(line_config *cfg) {
   cfg->fd = ip_accept(cfg->sfd);
   if(cfg->fd > -1) {
     LOG(LOG_ALL, "Connection accepted");
-    cfg->is_connected = TRUE;
+    cfg->is_connected = true;
     return 0;
   }
   LOG(LOG_ALL, "Could not accept connection");
@@ -91,7 +91,7 @@ int line_connect(line_config *cfg, char *number) {
   cfg->fd = ip_connect(address);
   if(cfg->fd > -1) {
     LOG(LOG_ALL, "Connected to %s", address);
-    cfg->is_connected = TRUE;
+    cfg->is_connected = true;
     return 0;
   } else {
     LOG(LOG_ALL, "Could not connect to %s",address);
@@ -101,7 +101,7 @@ int line_connect(line_config *cfg, char *number) {
 
 int line_disconnect(line_config *cfg) {
   LOG(LOG_INFO, "Disconnecting line");
-  if(cfg->is_connected == TRUE) {
+  if(cfg->is_connected) {
     ip_disconnect(cfg->fd);
   }
   reset_config(cfg);

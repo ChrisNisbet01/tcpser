@@ -29,7 +29,7 @@ int accept_connection(modem_config *cfg) {
   LOG_ENTER();
 
   if(-1 != line_accept(&cfg->line_data)) {
-    if(cfg->direct_conn == TRUE) {
+    if(cfg->direct_conn) {
       cfg->conn_type = MDM_CONN_INCOMING;
       mdm_off_hook(cfg);
     } else {
@@ -57,7 +57,7 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
       //line_write(cfg, (char*)TELNET_NOTICE,strlen(TELNET_NOTICE));
       LOG(LOG_INFO, "Detected telnet");
       // TODO add in telnet stuff
-      cfg->line_data.is_telnet = TRUE;
+      cfg->line_data.is_telnet = true;
       /* we need to let the other end know that our end will
        * handle the echo - otherwise "true" telnet clients like
        * those that come with Linux & Windows will echo characters
@@ -97,7 +97,7 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
                          NVT_OPT_TRANSMIT_BINARY
                         );
       }
-      cfg->is_binary_negotiated = TRUE;
+      cfg->is_binary_negotiated = true;
     }
     while(i < len) {
       ch = data[i];
@@ -194,7 +194,7 @@ static void line_data_cb(struct uloop_fd * u, unsigned int events)
         goto done;
     }
 
-    if (cfg->line_data.is_connected == TRUE) {
+    if (cfg->line_data.is_connected) {
       unsigned char buf[256];
 
       LOG(LOG_DEBUG, "Data available on socket");
@@ -540,7 +540,7 @@ cp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
   LOG(LOG_DEBUG, "Received %c from ip thread", buf[0]);
   switch (buf[0]) {
     case MSG_DISCONNECT:
-      if(cfg->direct_conn == TRUE) {
+      if(cfg->direct_conn) {
         // what should we do here...
         LOG(LOG_ERROR, "Direct Connection Link broken, disconnecting and awaiting new direct connection");
         mdm_disconnect(cfg, true);
@@ -652,7 +652,7 @@ void bridge_init(modem_config * const cfg)
   if(cfg->cur_line_idx) {
     mdm_parse_cmd(cfg);
   }
-  if (cfg->direct_conn == TRUE) {
+  if (cfg->direct_conn) {
     if(strlen((char *)cfg->direct_conn_num) > 0 &&
        cfg->direct_conn_num[0] != ':') {
         // we have a direct number to connect to.
@@ -666,7 +666,7 @@ void bridge_init(modem_config * const cfg)
       }
     }
   }
-  cfg->allow_transmit = TRUE;
+  cfg->allow_transmit = true;
   do_all_checks(cfg);
 
   LOG_EXIT();

@@ -188,11 +188,11 @@ int ip232_read(dce_config *cfg, unsigned char *data, int len) {
           cfg->ip232.iac = false;
           switch (ch) {
             case 0:
-              cfg->ip232.dtr = falsse;
+              cfg->ip232.dtr = false;
               LOG(LOG_DEBUG, "Virtual DTR line down");
               break;
             case 1:
-              cfg->ip232.dtr = TRUE;
+              cfg->ip232.dtr = true;
               LOG(LOG_DEBUG, "Virtual DTR line up");
               break;
             case 255:
@@ -201,7 +201,7 @@ int ip232_read(dce_config *cfg, unsigned char *data, int len) {
           }
         } else {
           if (255 == ch) {
-            cfg->ip232.iac = TRUE;
+            cfg->ip232.iac = true;
           } else {
             data[text_len++] = ch;
           }

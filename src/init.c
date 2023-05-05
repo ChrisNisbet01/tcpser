@@ -102,7 +102,7 @@ int init(int argc,
     cfg[0].dce_data.port_speed = 38400;
     cfg[0].dce_data.stopbits = 1;
     cfg[0].line_speed = 38400;
-    cfg[0].line_speed_follows_port_speed = TRUE;
+    cfg[0].line_speed_follows_port_speed = true;
 
     while (opt > -1 && i < max_modem)
     {
@@ -164,7 +164,7 @@ int init(int argc,
             cfg[i].cur_line_idx = strlen(cfg[i].cur_line);
             break;
         case 'I':
-            cfg[i].invert_dcd = TRUE;
+            cfg[i].invert_dcd = true;
             break;
         case 'p':
             *ip_addr = optarg;
@@ -222,15 +222,15 @@ int init(int argc,
             strncpy((char *)cfg[i].dce_data.tty, optarg, sizeof(cfg[i].dce_data.tty));
             LOG(LOG_ALL, "Setting TTY to %s", optarg);
             cfg[i].dce_data.is_ip232 = ('v' == opt);
-            tty_set = TRUE;
+            tty_set = true;
             break;
         case 'S':
             cfg[i].line_speed = atoi(optarg);
-            dce_set = TRUE;
+            dce_set = true;
             cfg[i].line_speed_follows_port_speed = false;
             break;
         case 'D':
-            cfg[i].direct_conn = TRUE;
+            cfg[i].direct_conn = true;
             strncpy(cfg[i].direct_conn_num, optarg, sizeof(cfg[i].direct_conn_num));
             break;
         case 'V':

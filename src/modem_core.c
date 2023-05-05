@@ -180,7 +180,7 @@ void mdm_write_char(modem_config *cfg, unsigned char data) {
 }
 
 void mdm_write(modem_config *cfg, unsigned char data[], int len) {
-  if(cfg->allow_transmit == TRUE) {
+  if(cfg->allow_transmit) {
     dce_write(&cfg->dce_data, data, len);
   }
 }
@@ -189,9 +189,9 @@ void mdm_send_response(int msg, modem_config *cfg) {
   char msgID[17];
 
   LOG(LOG_DEBUG, "Sending %s response to modem", mdm_responses[msg]);
-  if(cfg->send_responses == TRUE) {
+  if(cfg->send_responses) {
     mdm_write(cfg, (unsigned char *)cfg->crlf, 2);
-    if(cfg->text_responses == TRUE) {
+    if(cfg->text_responses) {
       LOG(LOG_ALL, "Sending text response");
       mdm_write(cfg, (unsigned char *)mdm_responses[msg], strlen(mdm_responses[msg]));
     } else {
@@ -221,7 +221,7 @@ int mdm_print_speed(modem_config *cfg) {
 
 void off_hook(modem_config *cfg) {
   LOG(LOG_INFO, "taking modem off hook");
-  cfg->is_off_hook = TRUE;
+  cfg->is_off_hook = true;
   line_off_hook(&cfg->line_data);
 }
 
@@ -342,21 +342,21 @@ int mdm_parse_cmd(modem_config* cfg) {
     switch(cmd) {
       case AT_CMD_ERR:
         mdm_send_response(MDM_RESP_ERROR, cfg);
-        done = TRUE;
+        done = true;
         break;
       case AT_CMD_END:
-        if(cfg->is_cmd_mode == TRUE)
+        if(cfg->is_cmd_mode)
           mdm_send_response(MDM_RESP_OK, cfg);
-        done = TRUE;
+        done = true;
         break;
       case AT_CMD_NONE:
-        done = TRUE;
+        done = true;
         break;
       case 'O':
       case 'A':
           mdm_answer(cfg);
           cmd = AT_CMD_END;
-          done = TRUE;
+          done = true;
           break;
       case 'B':   // 212A versus V.22 connection
         if(num > 1) {
@@ -377,7 +377,7 @@ int mdm_parse_cmd(modem_config* cfg) {
         } else if (num == 'L') {
           strncpy(cfg->dialno, cfg->last_dialno, strlen(cfg->last_dialno));
           cfg->dial_type = cfg->last_dial_type;
-          cfg->memory_dial = TRUE;
+          cfg->memory_dial = true;
           mdm_write(cfg, (unsigned char *)cfg->crlf, 2);
           mdm_write(cfg, (unsigned char *)cfg->dialno, strlen(cfg->dialno));
         } else {
@@ -392,7 +392,7 @@ int mdm_parse_cmd(modem_config* cfg) {
           mdm_off_hook(cfg);
           cfg->is_cmd_mode = false;
         }
-        done = TRUE;
+        done = true;
         break;
       case 'E':   // still need to define #2
         if(num == 0)
@@ -621,11 +621,11 @@ int mdm_parse_cmd(modem_config* cfg) {
 int mdm_handle_char(modem_config *cfg, unsigned char ch) {
   char ch_raw = ch & 0x7f;
 
-  if(cfg->is_echo == TRUE)
+  if(cfg->is_echo)
     dce_write_char_raw(&cfg->dce_data, ch);
-  if(cfg->is_cmd_started == TRUE) { // we previously got an 'AT'
+  if(cfg->is_cmd_started) { // we previously got an 'AT'
     if(ch_raw == (cfg->s[S_REG_BS])) {
-      if(cfg->cur_line_idx == 0 && cfg->is_echo == TRUE) {
+      if(cfg->cur_line_idx == 0 && cfg->is_echo) {
         mdm_write_char(cfg, 'T');
       } else {
         cfg->cur_line_idx--;
@@ -667,10 +667,10 @@ int mdm_clear_break(modem_config* cfg) {
 }
 
 int mdm_handle_timeout(modem_config *cfg) {
-  if(cfg->pre_break_delay == TRUE && cfg->break_len == 3) {
+  if(cfg->in_pre_break_delay && cfg->break_len == 3) {
     // pre and post break.
     LOG(LOG_INFO, "Break condition detected");
-    cfg->is_cmd_mode = TRUE;
+    cfg->is_cmd_mode = true;
     mdm_send_response(MDM_RESP_OK, cfg);
     mdm_clear_break(cfg);
   } else if(!cfg->in_pre_break_delay) {
@@ -703,13 +703,13 @@ int mdm_send_ring(modem_config *cfg) {
 int mdm_parse_data(modem_config *cfg, unsigned char *data, int len) {
   int i;
 
-  if(cfg->is_cmd_mode == TRUE) {
+  if(cfg->is_cmd_mode) {
     for(i = 0; i < len; i++) {
       mdm_handle_char(cfg, data[i]);
     }
   } else {
     line_write(&cfg->line_data, data, len);
-    if(cfg->pre_break_delay == TRUE) {
+    if(cfg->in_pre_break_delay) {
       for(i = 0; i < len; i++) {
         if(dce_strip_parity(&cfg->dce_data, data[i])  == (unsigned char)cfg->s[S_REG_BREAK]) {
           LOG(LOG_DEBUG, "Break character received");
@@ -732,7 +732,7 @@ int mdm_parse_data(modem_config *cfg, unsigned char *data, int len) {
 int mdm_read(modem_config *cfg, unsigned char *data, int len) {
   int res;
 
-  if(cfg->is_cmd_mode == TRUE) {
+  if(cfg->is_cmd_mode) {
     // read one char in raw mode
     res = dce_read_char_raw(&cfg->dce_data);
     if(res > 0) { // we have a character
