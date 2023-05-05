@@ -3,6 +3,8 @@
 
 #include "serial_side.h"
 
+#include <libubox/uloop.h>
+
 #define DCE_CL_DSR 1
 #define DCE_CL_DCD 2
 #define DCE_CL_CTS 4
@@ -48,6 +50,7 @@ typedef struct dce_config {
   int sSocket;
   int is_connected;
   int is_ip232;
+  struct uloop_fd ufd;
   ip232 ip232;
   serial_side_api_st *serial; /* Used when !is_ip232. */
 } dce_config;

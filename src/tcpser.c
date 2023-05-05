@@ -163,7 +163,7 @@ int main(int argc, char *argv[]) {
 
     cfgs[i].line_data.sfd = sSocket;
 
-    bridge_task(cfg);
+    bridge_task(cfgs[i]);
 
   }
   LOG(LOG_ALL, "Waiting for incoming connections and/or indicators");

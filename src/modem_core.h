@@ -88,6 +88,16 @@ enum {
   S_REG_SPEED = 31,
 };
 
+typedef struct bridge_data_st {
+  int action_pending;
+  int last_conn_type;
+  int last_cmd_mode;
+} bridge_data_st;
+
+typedef struct control_data_st {
+  int status;
+} control_data_st;
+
 typedef struct modem_config {
   // master configuration information
   int mp[2][2];
@@ -98,7 +108,13 @@ typedef struct modem_config {
   struct uloop_fd wp_ufd[2];
   struct uloop_fd sSocket_ufd;
 
+  bridge_data_st bridge_data;
+  control_data_st control_data;
+
   struct uloop_timeout ctrl_thread_timer;
+  struct uloop_timeout ring_timer;
+  struct uloop_timeout other_timer;
+
   char no_answer[256];
   char local_connect[256];
   char remote_connect[256];

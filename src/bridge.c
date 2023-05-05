@@ -16,6 +16,7 @@
 #include "bridge.h"
 
 const char MDM_NO_ANSWER[] = "NO ANSWER\n";
+#define RING_INTERVAL_SECS 2
 
 int accept_connection(modem_config *cfg) {
   LOG_ENTER();
@@ -228,17 +229,16 @@ ip_thread(modem_config* cfg)
   LOG_EXIT();
 }
 
-static int status = -1;
-
 static void
 ctrl_thread(modem_config * cfg)
 {
+    control_data_st * const control_data = &cfg->control_data;
     int const new_status = dce_check_control_lines(&cfg->dce_data);
 
-    if (new_status > -1 && status != new_status)
+    if (new_status > -1 && control_data->status != new_status)
     {
         LOG(LOG_DEBUG, "Control Line Change");
-        if ((new_status & DCE_CL_DTR) != (status & DCE_CL_DTR))
+        if ((new_status & DCE_CL_DTR) != (control_data-> & DCE_CL_DTR))
         {
             if ((new_status & DCE_CL_DTR))
             {
@@ -251,7 +251,7 @@ ctrl_thread(modem_config * cfg)
                 writePipe(cfg->wp[0][1], MSG_DTR_DOWN);
             }
         }
-        if ((new_status & DCE_CL_LE) != (status & DCE_CL_LE))
+        if ((new_status & DCE_CL_LE) != (control_data-> & DCE_CL_LE))
         {
             if ((new_status & DCE_CL_LE))
             {
@@ -266,8 +266,8 @@ ctrl_thread(modem_config * cfg)
         }
     }
 
-    status = new_status;
-    if (status < 0)
+    control_data-> = new_status;
+    if (control_data-> < 0)
     {
         /* Can't obtain status, so exit the program. */
         uloop_done();
@@ -313,13 +313,12 @@ done:
     LOG_EXIT();
 }
 
-static int last_conn_type;
-static int last_cmd_mode;
-
 static void
 check_connection_type_change(modem_config * const cfg)
 {
-    if(last_conn_type != cfg->conn_type) {
+  bridge_data_st * consdt bridge_data = &cfg->bridge_data;
+
+    if(bridge_data->last_conn_type != cfg->conn_type) {
       LOG(LOG_ALL, "Connection status change, handling");
       writePipe(cfg->cp[1][1], MSG_NOTIFY);
       if(cfg->conn_type == MDM_CONN_OUTGOING) {
@@ -337,22 +336,278 @@ check_connection_type_change(modem_config * const cfg)
           writeFile(cfg->remote_answer, cfg->line_data.fd);
         }
       }
-      last_conn_type = cfg->conn_type;
+      bridge_data->last_conn_type = cfg->conn_type;
     }
 }
 
 static void
 check_command_mode_change(modem_config * const cfg)
 {
-    if(last_cmd_mode != cfg->is_cmd_mode) {
+    bridge_data_st * const bridge_data = &cfg->bridge_data;
+
+    if(bridge_data->last_cmd_mode != cfg->is_cmd_mode) {
       writePipe(cfg->cp[1][1], MSG_NOTIFY);
-      last_cmd_mode = cfg->is_cmd_mode;
+      bridge_data->last_cmd_mode = cfg->is_cmd_mode;
     }
+}
+
+static void
+do_all_checks(modem_config * const cfg)
+{
+  check_connection_type_change(cfg);
+  check_command_mode_change(cfg);
+  check_read_dce_data(cfg);
+  check_start_ring_timer(cfg);
+  check_start_other_timer(cfg);
+  LOG(LOG_ALL, "Waiting for modem/control line/timer/socket activity");
+  LOG(
+      LOG_ALL,
+      "CMD:%d, DCE:%d, LINE:%d, TYPE:%d, HOOK:%d",
+      cfg->is_cmd_mode,
+      cfg->dce_data.is_connected,
+      cfg->line_data.is_connected,
+      cfg->conn_type,
+      cfg->is_off_hook
+  );
+}
+
+static void dce_data_cb(struct uloop_fd * u, int const events)
+{
+  dce_config * const dce_data = container_of(u, dce_config, ufd);
+  modem_config * const cfg = container_of(dce_data, modem_config, dce_data);
+  LOG_ENTER();
+
+  if (u->eof || u->error)
+  {
+      uloop_fd_delete(u);
+      /* TODO: what? End program? (uloop_done();) */
+      goto done;
+  }
+
+  LOG(LOG_DEBUG, "Data available on serial port");
+  unsigned char buf[256];
+  int const res = mdm_read(cfg, buf, sizeof(buf));
+  if(res > 0) {
+    if(cfg->conn_type == MDM_CONN_NONE
+       && !cfg->is_cmd_mode
+       && cfg->is_off_hook) {
+      // this handles the case where atdt/ata goes off hook, but no
+      // connection
+      mdm_disconnect(cfg, FALSE);
+    } else {
+      mdm_parse_data(cfg, buf, res);
+    }
+  }
+
+done:
+  do_all_checks(cfg);
+  LOG_EXIT();
+}
+
+static void
+check_read_dce_data(modem_config * const cfg)
+{
+  if(cfg->dce_data.is_connected) {
+    cfg->dce_data.ufd.fd = dce_rx_fd(&cfg->dce_data);
+    cfg->dce_data.ufd.cb = dce_data_cb;
+    uloop_fd_add(&cfg->dce_data.ufd);
+  }
+  else
+  {
+    uloop_fd_delete(&cfg->dce_data.ufd);
+  }
+}
+
+static void
+handle_ring_timeout(modem_config * const cfg)
+{
+  if(cfg->is_cmd_mode && cfg->conn_type == MDM_CONN_NONE && cfg->line_data.is_connected)
+  {
+    if(cfg->s[0] == 0 && cfg->rings == 10) {
+      // not going to answer, send some data back to IP and disconnect.
+      if(strlen(cfg->no_answer) == 0) {
+        line_write(&cfg->line_data, (unsigned char *)MDM_NO_ANSWER, strlen(MDM_NO_ANSWER));
+      } else {
+        writeFile(cfg->no_answer, cfg->line_data.fd);
+      }
+      cfg->is_ringing = FALSE;
+      //mdm_disconnect(cfg, FALSE); // not sure need to do a disconnect here, no connection
+    }
+    else
+    {
+      mdm_send_ring(cfg);
+    }
+  }
+}
+
+static void
+handle_ring_timeout_cb(struct uloop_timeout * const t)
+{
+  modem_config * const cfg = container_of(t, modem_config, ring_timer);
+  handle_ring_timeout(cfg);
+}
+
+static void
+check_start_ring_timer(modem_config * const cfg)
+{
+  uloop_timeout * const t = &cfg->ring_timer;
+
+  if(cfg->is_cmd_mode && cfg->conn_type == MDM_CONN_NONE && cfg->line_data.is_connected)
+  {
+          LOG(LOG_ALL, "Setting timer for rings");
+          t->cb = handle_ring_timeout_cb;
+          uloop_timeout_set(t, RING_INTERVAL_SECS * 1000);
+  }
+  else
+  {
+    uloop_timeout_cancel(t);
+  }
+}
+
+static void
+handle_other_timeout(modem_config * const cfg)
+{
+  if (!cfg->is_cmd_mode || cfg->conn_type != MDM_CONN_NONE || !cfg->line_data.is_connected)
+  {
+    mdm_handle_timeout(cfg);
+  }
+}
+
+static void
+handle_other_timeout_cb(struct uloop_timeout * const t)
+{
+  modem_config * const cfg = container_of(t, modem_config, other_timer);
+  handle_other_timeout(cfg);
+}
+
+static void
+check_start_other_timer(modem_condig * const cfg)
+{
+  uloop_timeout * const t = &cfg->other_timer;
+  int timeout_msecs = 0;
+    if(cfg->is_cmd_mode == FALSE) {
+      if(cfg->pre_break_delay == FALSE || cfg->break_len == 3) {
+        LOG(LOG_ALL, "Setting timer for break delay");
+        long long usec;
+        usec = cfg->s[S_REG_GUARD_TIME] * 20000;
+        timeout_msecs = usec / 1000;
+      } else if(cfg->pre_break_delay == TRUE && cfg->break_len > 0) {
+        LOG(LOG_ALL, "Setting timer for inter-break character delay");
+        timeout_msecs = 1000;
+      } else if (cfg->s[30] != 0) {
+        LOG(LOG_ALL, "Setting timer for inactivity delay");
+        timeout_msecs = cfg->s[S_REG_INACTIVITY_TIME] * 10 * 1000;
+      }
+    }
+    if (timeout_msecs > 0)
+    {
+      uloop_timeout_set(t, timeout_msecs);
+    }
+    else
+    {
+      uloop_timeout_cancel(t);
+    }
+}
+
+static void
+wp0_read_handler_cb(stuct uloop_fd * const u, int const events)
+{
+  modem_config * const cfg = container_of(u, modem_config, wp_ufd[0]);
+
+  LOG_ENTER();
+
+  if (u->eof || u->error)
+  {
+      uloop_fd_delete(u);
+      /* TODO: what? End program? (uloop_done();) */
+      goto done;
+  }
+
+  unsigned char buf[256];
+  int const res = readPipe(cfg->wp[0][0], buf, sizeof(buf));
+  LOG(LOG_DEBUG, "Received %s from control line watch task", buf);
+  for(int i = 0; i < res ; i++) {
+    switch (buf[0]) {
+      case MSG_DTR_DOWN:
+        // DTR drop, close any active connection and put
+        // in cmd_mode
+        mdm_disconnect(cfg, FALSE);
+        break;
+      default:
+        break;
+    }
+  }
+
+done:
+  do_all_checks(cfg);
+  LOG_EXIT();
+}
+
+static void
+cp0_read_handler_cb(stuct uloop_fd * const u, int const events)
+{
+  modem_config * const cfg = container_of(u, modem_config, cp_ufd[0]);
+
+  LOG_ENTER();
+
+  if (u->eof || u->error)
+  {
+      uloop_fd_delete(u);
+      /* TODO: what? End program? (uloop_done();) */
+      goto done;
+  }
+
+  unsigned char buf[256];
+  int const res = readPipe(cfg->cp[0][0], buf, sizeof(buf));
+  LOG(LOG_DEBUG, "Received %c from ip thread", buf[0]);
+  switch (buf[0]) {
+    case MSG_DISCONNECT:
+      if(cfg->direct_conn == TRUE) {
+        // what should we do here...
+        LOG(LOG_ERROR, "Direct Connection Link broken, disconnecting and awaiting new direct connection");
+        mdm_disconnect(cfg, TRUE);
+      } else {
+        mdm_disconnect(cfg, FALSE);
+      }
+      break;
+  }
+
+done:
+  do_all_checks(cfg);
+  LOG_EXIT();
+}
+
+static void
+mp1_read_handler_cb(stuct uloop_fd * const u, int const events)
+{
+  modem_config * const cfg = container_of(u, modem_config, mp_ufd[1]);
+
+  LOG_ENTER();
+
+  if (u->eof || u->error)
+  {
+      uloop_fd_delete(u);
+      /* TODO: what? End program? (uloop_done();) */
+      goto done;
+  }
+
+  LOG(LOG_DEBUG, "Data available on incoming IPC pipe");
+  unsigned char buf[256];
+  int const res = readPipe(cfg->mp[1][0], buf, sizeof(buf));
+  switch (buf[0]) {
+    case MSG_CALLING:       // accept connection.
+      accept_connection(cfg);
+      break;
+  }
+
+done:
+  do_all_checks(cfg);
+  LOG_EXIT();
 }
 
 bridge_task(modem_config *cfg)
 {
-  modem_config *cfg = (modem_config *)arg;
+  bridge_data_st * const bridge_data = &cfg->bridge_data;
   struct timeval timer;
   struct timeval *ptimer;
   int max_fd = 0;
@@ -361,9 +616,10 @@ bridge_task(modem_config *cfg)
   unsigned char buf[256];
   int rc = 0;
 
-  last_cmd_mode = cfg->is_cmd_mode;
-
   LOG_ENTER();
+
+  bridge_data->last_cmd_mode = cfg->is_cmd_mode;
+  bridge_data->action_pending = false;
 
   cfg->mp_ufd[1].cb = bridge_task_outgoing_ipc_handler;
   cfg->mp_ufd[1].fd = cfg->mp[1][0];
@@ -373,10 +629,18 @@ bridge_task(modem_config *cfg)
     ELOG(LOG_FATAL, "Control line watch task incoming IPC pipe could not be created");
     exit(-1);
   }
+  cfg->wp_ufd[0].cb = wp0_read_handler_cb;
+  cfg->wp_ufd[0].fd = cfg->wp[0][0];
+  uloop_fd_add(&cfg->wp_ufd[0], ULOOP_READ);
+
   if(-1 == pipe(cfg->cp[0])) {
     ELOG(LOG_FATAL, "IP thread incoming IPC pipe could not be created");
     exit(-1);
   }
+  cfg->cp_ufd[0].cb = cp0_read_handler_cb;
+  cfg->cp_ufd[0].fd = cfg->cp[0][0];
+  uloop_fd_add(&cfg->wp_ufd[0], ULOOP_READ);
+
   if(-1 == pipe(cfg->cp[1])) {
     ELOG(LOG_FATAL, "IP thread outgoing IPC pipe could not be created");
     exit(-1);
@@ -390,7 +654,7 @@ bridge_task(modem_config *cfg)
   ip_thread(cfg);
 
   mdm_set_control_lines(cfg);
-  last_conn_type = cfg->conn_type;
+  bridge_data->last_conn_type = cfg->conn_type;
   cfg->allow_transmit = FALSE;
   // call some functions behind the scenes
   if(cfg->cur_line_idx) {
@@ -412,130 +676,5 @@ bridge_task(modem_config *cfg)
   }
   cfg->allow_transmit = TRUE;
 
-  for(;;) {
-      check_connection_type_change(cfg);
-      check_command_mode_change(cfg);
-    LOG(LOG_ALL, "Waiting for modem/control line/timer/socket activity");
-    LOG(LOG_ALL, "CMD:%d, DCE:%d, LINE:%d, TYPE:%d, HOOK:%d", cfg->is_cmd_mode, cfg->dce_data.is_connected, cfg->line_data.is_connected, cfg->conn_type, cfg->is_off_hook);
-    FD_ZERO(&readfs);
-    max_fd = cfg->mp[1][0];
-    FD_SET(cfg->mp[1][0], &readfs);
-    if(cfg->dce_data.is_connected) {
-      max_fd = MAX(max_fd, dce_rx_fd(&cfg->dce_data));
-      FD_SET(dce_rx_fd(&cfg->dce_data), &readfs);
-    }
-    max_fd = MAX(max_fd, cfg->wp[0][0]);
-    FD_SET(cfg->wp[0][0], &readfs);
-    max_fd = MAX(max_fd, cfg->cp[0][0]);
-    FD_SET(cfg->cp[0][0], &readfs);
-    ptimer = NULL;
-    if(cfg->is_cmd_mode == FALSE) {
-      if(cfg->pre_break_delay == FALSE || cfg->break_len == 3) {
-        LOG(LOG_ALL, "Setting timer for break delay");
-        long long usec;
-        usec = cfg->s[S_REG_GUARD_TIME] * 20000;
-        timer.tv_sec = usec / 1000000;
-        timer.tv_usec = usec % 1000000;
-        ptimer = &timer;
-      } else if(cfg->pre_break_delay == TRUE && cfg->break_len > 0) {
-        LOG(LOG_ALL, "Setting timer for inter-break character delay");
-        timer.tv_sec = 1;   // 1 second
-        timer.tv_usec = 0;
-        ptimer = &timer;
-      } else if (cfg->s[30] != 0) {
-        LOG(LOG_ALL, "Setting timer for inactivity delay");
-        timer.tv_sec = cfg->s[S_REG_INACTIVITY_TIME] * 10;
-        timer.tv_usec = 0;
-        ptimer = &timer;
-      }
-    } else if(cfg->is_cmd_mode == TRUE
-              && cfg->conn_type == MDM_CONN_NONE
-              && cfg->line_data.is_connected == TRUE
-             ) {
-        LOG(LOG_ALL, "Setting timer for rings");
-        timer.tv_sec = 4;
-        timer.tv_usec = 0;
-        ptimer = &timer;
-    }
-    max_fd++;
-    rc = select(max_fd, &readfs, NULL, NULL, ptimer);
-    if(rc == -1) {
-      ELOG(LOG_WARN, "Select returned error");
-      // handle error
-    } else if(rc == 0) {
-      // timer popped.
-      if(cfg->is_cmd_mode == TRUE
-         && cfg->conn_type == MDM_CONN_NONE
-         && cfg->line_data.is_connected == TRUE
-        ) {
-        if(cfg->s[0] == 0 && cfg->rings == 10) {
-          // not going to answer, send some data back to IP and disconnect.
-          if(strlen(cfg->no_answer) == 0) {
-            line_write(&cfg->line_data, (unsigned char *)MDM_NO_ANSWER, strlen(MDM_NO_ANSWER));
-          } else {
-            writeFile(cfg->no_answer, cfg->line_data.fd);
-          }
-          cfg->is_ringing = FALSE;
-          //mdm_disconnect(cfg, FALSE); // not sure need to do a disconnect here, no connection
-        } else
-          mdm_send_ring(cfg);
-      } else
-        mdm_handle_timeout(cfg);
-    }
-    if (FD_ISSET(dce_rx_fd(&cfg->dce_data), &readfs)) {  // serial port
-      LOG(LOG_DEBUG, "Data available on serial port");
-      res = mdm_read(cfg, buf, sizeof(buf));
-      if(res > 0) {
-        if(cfg->conn_type == MDM_CONN_NONE
-           && !cfg->is_cmd_mode
-           && cfg->is_off_hook) {
-          // this handles the case where atdt/ata goes off hook, but no
-          // connection
-          mdm_disconnect(cfg, FALSE);
-        } else {
-          mdm_parse_data(cfg, buf, res);
-        }
-      }
-    }
-    if (FD_ISSET(cfg->wp[0][0], &readfs)) {  // control pipe
-      res = readPipe(cfg->wp[0][0], buf, sizeof(buf) - 1);
-      LOG(LOG_DEBUG, "Received %s from control line watch task", buf);
-      for(int i = 0; i < res ; i++) {
-        switch (buf[0]) {
-          case MSG_DTR_DOWN:
-            // DTR drop, close any active connection and put
-            // in cmd_mode
-            mdm_disconnect(cfg, FALSE);
-            break;
-          default:
-            break;
-        }
-      }
-    }
-    if (FD_ISSET(cfg->cp[0][0], &readfs)) {  // ip thread pipe
-      res = readPipe(cfg->cp[0][0], buf, sizeof(buf));
-      LOG(LOG_DEBUG, "Received %c from ip thread", buf[0]);
-      switch (buf[0]) {
-        case MSG_DISCONNECT:
-          if(cfg->direct_conn == TRUE) {
-            // what should we do here...
-            LOG(LOG_ERROR, "Direct Connection Link broken, disconnecting and awaiting new direct connection");
-            mdm_disconnect(cfg, TRUE);
-          } else {
-            mdm_disconnect(cfg, FALSE);
-          }
-          break;
-      }
-    }
-    if (FD_ISSET(cfg->mp[1][0], &readfs)) {  // parent pipe
-      LOG(LOG_DEBUG, "Data available on incoming IPC pipe");
-      res = readPipe(cfg->mp[1][0], buf, sizeof(buf));
-      switch (buf[0]) {
-        case MSG_CALLING:       // accept connection.
-          accept_connection(cfg);
-          break;
-      }
-    }
-  }
   LOG_EXIT();
 }
