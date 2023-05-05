@@ -3,6 +3,7 @@
 
 #include "modem_core.h"
 
+#define MSG_NONE          '\0'
 #define MSG_CALLING       'C'
 #define MSG_BUSY          'B'
 #define MSG_DTR_UP        'D'

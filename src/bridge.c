@@ -15,8 +15,9 @@
 
 #include "bridge.h"
 
-const char MDM_NO_ANSWER[] = "NO ANSWER\n";
-#define RING_INTERVAL_SECS 2
+static const char MDM_NO_ANSWER[] = "NO ANSWER\n";
+static unsigned int const ring_interval_secs = 2;
+#define TEXT_BUF_SIZE 1025
 
 static void
 do_all_checks(modem_config * cfg);
@@ -29,7 +30,6 @@ int accept_connection(modem_config *cfg) {
       cfg->conn_type = MDM_CONN_INCOMING;
       mdm_off_hook(cfg);
     } else {
-      //line_write(cfg,(unsigned char*)CONNECT_NOTICE,strlen(CONNECT_NOTICE));
       cfg->rings = 0;
       mdm_send_ring(cfg);
     }
@@ -45,7 +45,7 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
   // I'm going to cheat and assume it comes in chunks.
   int i = 0;
   unsigned char ch;
-  unsigned char text[1025];
+  unsigned char text[TEXT_BUF_SIZE];
   int text_len = 0;
 
   if(cfg->line_data.is_data_received == FALSE) {
@@ -136,15 +136,15 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
       } else {
         text[text_len++] = data[i++];
       }
-      if(text_len == 1024) {
-        text[text_len] = 0;
+      if(text_len == sizeof(text) - 1) {
+        text[text_len] = '\0';
         // write to serial...
         mdm_write(cfg, text, text_len);
         text_len = 0;
       }
     }
-    if(text_len) {
-      text[text_len] = 0;
+    if(text_len > 0) {
+      text[text_len] = '\0';
       // write to serial...
       mdm_write(cfg, text, text_len);
     }
@@ -206,7 +206,7 @@ static void line_data_cb(struct uloop_fd * u, unsigned int events)
         action_pending_change(cfg, true);
       } else {
         LOG(LOG_DEBUG, "Read %d bytes from socket", res);
-        writePipe(cfg->cp[0][1], 0); /* reset inactivity timer */
+        writePipe(cfg->cp[0][1], MSG_NONE); /* reset inactivity timer */
         buf[res] = '\0';
         parse_ip_data(cfg, buf, res);
       }
@@ -217,7 +217,7 @@ done:
 }
 
 static void
-control_pipe_1_read(struct uloop_fd * u, unsigned int events)
+cp1_read_handler_cb(struct uloop_fd * u, unsigned int events)
 {
     LOG_ENTER();
     modem_config * const cfg = container_of(u, modem_config, cp_ufd[1]);
@@ -234,7 +234,7 @@ ip_thread(modem_config* cfg)
 {
   LOG_ENTER();
   action_pending_change(cfg, action_pending);
-  cfg->cp_ufd[1].cb = control_pipe_1_read;
+  cfg->cp_ufd[1].cb = cp1_read_handler_cb;
   cfg->cp_ufd[1].fd = cfg->cp[1][0];
   uloop_fd_add(&cfg->cp_ufd[1], ULOOP_READ);
   LOG_EXIT();
@@ -427,7 +427,7 @@ check_start_ring_timer(modem_config * const cfg)
   {
           LOG(LOG_ALL, "Setting timer for rings");
           t->cb = handle_ring_timeout_cb;
-          uloop_timeout_set(t, RING_INTERVAL_SECS * 1000);
+          uloop_timeout_set(t, ring_interval_secs * 1000);
   }
   else
   {
@@ -463,9 +463,7 @@ check_start_other_timer(modem_config * const cfg)
         if (cfg->pre_break_delay == FALSE || cfg->break_len == 3)
         {
             LOG(LOG_ALL, "Setting timer for break delay");
-            long long usec;
-            usec = cfg->s[S_REG_GUARD_TIME] * 20000;
-            timeout_msecs = usec / 1000;
+            timeout_msecs = cfg->s[S_REG_GUARD_TIME] * 20;
         }
         else if (cfg->pre_break_delay == TRUE && cfg->break_len > 0)
         {
