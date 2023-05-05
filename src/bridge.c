@@ -393,7 +393,7 @@ handle_ring_timeout(modem_config * const cfg)
         writeFile(cfg->no_answer, cfg->line_data.fd);
       }
       cfg->is_ringing = FALSE;
-      //mdm_disconnect(cfg, FALSE); // not sure need to do a disconnect here, no connection
+      mdm_disconnect(cfg, FALSE);
     }
     else
     {
@@ -415,7 +415,10 @@ check_start_ring_timer(modem_config * const cfg)
 {
   struct uloop_timeout * const t = &cfg->ring_timer;
 
-  if(cfg->is_cmd_mode && cfg->conn_type == MDM_CONN_NONE && cfg->line_data.is_connected)
+  if(cfg->is_cmd_mode
+     && cfg->conn_type == MDM_CONN_NONE
+     && cfg->line_data.is_connected
+     && cfg->is_ringing)
   {
           LOG(LOG_ALL, "Setting timer for rings");
           t->cb = handle_ring_timeout_cb;

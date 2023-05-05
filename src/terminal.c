@@ -1,6 +1,8 @@
 #include "terminal.h"
 #include "serial.h"
 
+#include <libubox/uloop.h>
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>

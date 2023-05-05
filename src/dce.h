@@ -46,8 +46,6 @@ typedef struct dce_config {
   int port_speed;
   int stopbits;
   int parity;
-  int dp[2];
-  struct uloop_fd dp_ufd[2];
   int sSocket;
   struct uloop_fd sSocket_ufd;
   int is_connected;

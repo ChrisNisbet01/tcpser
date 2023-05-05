@@ -30,7 +30,7 @@ static char *get_trace_type(int type) {
 }
 
 int log_init() {
-  log_file = stdout;
+  log_file = stderr;
   log_level = 0;
   trace_flags = 0;
   log_desc[LOG_FATAL] =           "FATAL";

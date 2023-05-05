@@ -16,28 +16,13 @@
 #include "ip232.h"
 
 static void
-ip232_data_cb(struct uloop_fd * const u, unisgned in events)
-{
-  dce_config * const cfg = container_of(u, dce_config, dp_ufd);
-  LOG_ENTER();
-
-  unsigned char buf[256];
-  int const rc = readPipe(cfg->dp[0], buf, sizeof(buf) - 1);
-  (void)rc);
-  LOG(LOG_DEBUG, "ip232 thread notified");
-
-done:
-    LOG_EXIT();
-}
-
-static void
-listening_socket_cb(struct uloop_fd * const u, unisgned in events)
+listening_socket_cb(struct uloop_fd * const u, unsigned int const events)
 {
   dce_config * const cfg = container_of(u, dce_config, sSocket_ufd);
   LOG_ENTER();
 
   LOG(LOG_DEBUG, "Incoming ip232 connection");
-  rc = ip_accept(cfg->sSocket);
+  int const rc = ip_accept(cfg->sSocket);
   if(cfg->is_connected) {
     LOG(LOG_DEBUG, "Already have ip232 connection, rejecting new");
     // already have a connection... accept and close
@@ -53,18 +38,13 @@ listening_socket_cb(struct uloop_fd * const u, unisgned in events)
     }
   }
 
-done:
     LOG_EXIT();
 }
 
 static void
-ip232_thread(dce_config *cfg)
+ip232_thread(dce_config * const cfg)
 {
     LOG_ENTER();
-
-    cfg->dp_ufd.fd = cfg->dp[0];
-    cfg->dp_ufd.cb = ip232_data_cb;
-    uloop_fd_add(&cfg->dp_ufd, ULOOP_READ);
 
     cfg->sSocket_ufd.fd = cfg->sSocket;
     cfg->sSocket_ufd.cb = listening_socket_cb;
@@ -73,8 +53,6 @@ ip232_thread(dce_config *cfg)
     LOG(LOG_ALL, "Waiting for incoming ip232 connections");
 
     LOG_EXIT();
-
-  return NULL;
 }
 
 int ip232_init_conn(dce_config *cfg) {
@@ -86,11 +64,6 @@ int ip232_init_conn(dce_config *cfg) {
 
   if (rc < 0) {
     ELOG(LOG_FATAL, "Could not initialize ip232 server socket");
-    exit(-1);
-  }
-
-  if(-1 == pipe(cfg->dp)) {
-    ELOG(LOG_FATAL, "ip232 thread outgoing IPC pipe could not be created");
     exit(-1);
   }
 
@@ -127,7 +100,8 @@ int ip232_set_control_lines(dce_config *cfg, int state) {
       LOG(LOG_DEBUG, "Sending data");
       cmd[0] = 255;
       cmd[1] = dcd ? 1 : 0;
-      write(cfg->ip232.fd, cmd, sizeof(cmd));
+      int const res = write(cfg->ip232.fd, cmd, sizeof(cmd));
+      (void)res;
     }
   }
   return 0;
