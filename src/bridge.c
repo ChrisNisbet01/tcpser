@@ -365,6 +365,8 @@ done:
 static void
 check_read_dce_data(modem_config * const cfg)
 {
+  LOG_ENTER();
+
   if(cfg->dce_data.is_connected) {
     cfg->dce_data.ufd.fd = dce_rx_fd(&cfg->dce_data);
     cfg->dce_data.ufd.cb = dce_data_cb;
@@ -374,6 +376,8 @@ check_read_dce_data(modem_config * const cfg)
   {
     uloop_fd_delete(&cfg->dce_data.ufd);
   }
+
+  LOG_EXIT();
 }
 
 static void
@@ -396,6 +400,7 @@ handle_ring_timeout(modem_config * const cfg)
       mdm_send_ring(cfg);
     }
   }
+  do_all_checks(cfg);
 }
 
 static void
@@ -429,6 +434,7 @@ handle_other_timeout(modem_config * const cfg)
   {
     mdm_handle_timeout(cfg);
   }
+  do_all_checks(cfg);
 }
 
 static void
@@ -657,6 +663,7 @@ bridge_task(modem_config *cfg)
     }
   }
   cfg->allow_transmit = TRUE;
+  do_all_checks(cfg);
 
   LOG_EXIT();
 }

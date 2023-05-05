@@ -6,11 +6,6 @@
 #define FALSE 0
 #endif
 
-#define container_of(ptr, type, member) ({                      \
-        const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
-        (type *)( (char *)__mptr - offsetof(type,member) );})
-
-
 int ser_get_bps_const(int speed);
 int ser_init_conn(char const *tty, int speed, int stopbits);
 int ser_set_flow_control(int fd, unsigned iflag, unsigned cflag);

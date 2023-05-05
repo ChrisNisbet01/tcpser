@@ -67,6 +67,7 @@ int init(int argc,
 
   while(opt>-1 && i < max_modem) {
     opt=getopt(argc, argv, "p:s:b:S:d:v:hw:i:Il:L:t:n:a:A:c:C:N:B:T:D:V");
+    LOG(LOG_DEBUG, "handle opt arg %d", opt);
     switch(opt) {
       case 't':
         trace_flags = log_get_trace_flags();

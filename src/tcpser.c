@@ -128,9 +128,6 @@ done:
 }
 
 int main(int argc, char *argv[]) {
-  int i;
-  int rc = 0;
-
   log_init();
 
   LOG_ENTER();
@@ -154,8 +151,9 @@ int main(int argc, char *argv[]) {
 
   uloop_init();
 
-  for(i = 0; i < modem_count; i++) {
+  for(int i = 0; i < modem_count; i++) {
     LOG(LOG_INFO, "Creating modem #%d", i);
+    LOG(LOG_DEBUG, "serial device %s ip %s", cfgs[i].dce_data.tty, ip_addr);
     if(-1 == pipe(cfgs[i].mp[0])) {
       ELOG(LOG_FATAL, "Bridge task incoming IPC pipe could not be created");
       exit(-1);
@@ -181,5 +179,6 @@ int main(int argc, char *argv[]) {
   uloop_run();
 
   LOG_EXIT();
-  return rc;
+
+  return EXIT_SUCCESS;
 }
