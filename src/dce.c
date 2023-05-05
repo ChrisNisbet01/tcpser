@@ -48,6 +48,24 @@ int dce_connect(dce_config *cfg) {
   return rc;
 }
 
+void
+dce_close(dce_config * cfg)
+{
+  LOG_ENTER();
+
+  if (cfg->is_ip232) {
+    ip232_close_conn(cfg);
+  } else {
+    if (cfg->serial != NULL) {
+      cfg->serial->methods->free(cfg->serial);
+      cfg->serial = NULL;
+    }
+  }
+  cfg->is_connected = FALSE;
+
+  LOG_EXIT();
+}
+
 int dce_set_flow_control(dce_config *cfg, int opts) {
   unsigned iflag = 0;
   unsigned cflag = 0;

@@ -178,6 +178,11 @@ int main(int argc, char *argv[]) {
 
   uloop_run();
 
+  for (int i = 0; i < modem_count; i++)
+  {
+    bridge_task_close(&cfgs[i]);
+  }
+
   LOG_EXIT();
 
   return EXIT_SUCCESS;

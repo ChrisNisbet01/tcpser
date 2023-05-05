@@ -75,6 +75,21 @@ int ip232_init_conn(dce_config *cfg) {
   return 0;
 }
 
+void
+ip232_close_conn(dce_config * const cfg)
+{
+  LOG_ENTER();
+  LOG(LOG_INFO, "Closing ip232 device");
+
+  if (cfg->sSocket >= 0)
+  {
+    uloop_fd_delete(&cfg->sSocket_ufd);
+    close(cfg->sSocket);
+    cfg->sSocket = -1;
+  }
+
+  LOG_EXIT();
+}
 
 int ip232_set_flow_control(dce_config *cfg, unsigned iflag, unsigned cflag) {
   return 0;

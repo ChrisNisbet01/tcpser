@@ -675,3 +675,12 @@ bridge_task(modem_config *cfg)
 
   LOG_EXIT();
 }
+
+void
+bridge_task_close(modem_config * const cfg)
+{
+  LOG_ENTER();
+  dce_close(&cfg->dce_data);
+  LOG_EXIT();
+}
+
