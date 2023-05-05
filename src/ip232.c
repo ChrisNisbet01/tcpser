@@ -15,52 +15,64 @@
 #include "ip.h"
 #include "ip232.h"
 
-static void *ip232_thread(void *arg) {
-  dce_config *cfg = (dce_config *)arg;
-  int rc;
-  unsigned char buf[256];
-
-  fd_set readfs;
-  int max_fd = 0;
-
+static void
+ip232_data_cb(struct uloop_fd * const u, unisgned in events)
+{
+  dce_config * const cfg = container_of(u, dce_config, dp_ufd);
   LOG_ENTER();
-  for (;;) {
-    FD_ZERO(&readfs);
-    FD_SET(cfg->dp[1][0], &readfs);
-    max_fd = cfg->dp[1][0];
-    FD_SET(cfg->sSocket, &readfs);
-    max_fd = MAX(max_fd, cfg->sSocket);
-    LOG(LOG_ALL, "Waiting for incoming ip232 connections");
-    rc = select(max_fd + 1, &readfs, NULL, NULL, NULL);
 
-    if (rc < 0) {
-      // handle error
-    } else {
-      if (FD_ISSET(cfg->dp[1][0], &readfs)) {  // pipe
-        rc = readPipe(cfg->dp[1][0], buf, sizeof(buf) - 1);
-        LOG(LOG_DEBUG, "ip232 thread notified");
-      }
-      if (FD_ISSET(cfg->sSocket, &readfs)) {  // ip connection
-        LOG(LOG_DEBUG, "Incoming ip232 connection");
-        rc = ip_accept(cfg->sSocket);
-        if(cfg->is_connected) {
-          LOG(LOG_DEBUG, "Already have ip232 connection, rejecting new");
-          // already have a connection... accept and close
-          if(rc > -1) {
-            close(rc);
-          }
-        } else {
-          if(rc > -1) {
-            cfg->ip232.fd = rc;
-            cfg->is_connected = TRUE;
-            cfg->ip232.dtr = FALSE;
-            cfg->ip232.dcd = FALSE;
-          }
-        }
-      }
+  unsigned char buf[256];
+  int const rc = readPipe(cfg->dp[0], buf, sizeof(buf) - 1);
+  (void)rc);
+  LOG(LOG_DEBUG, "ip232 thread notified");
+
+done:
+    LOG_EXIT();
+}
+
+static void
+listening_socket_cb(struct uloop_fd * const u, unisgned in events)
+{
+  dce_config * const cfg = container_of(u, dce_config, sSocket_ufd);
+  LOG_ENTER();
+
+  LOG(LOG_DEBUG, "Incoming ip232 connection");
+  rc = ip_accept(cfg->sSocket);
+  if(cfg->is_connected) {
+    LOG(LOG_DEBUG, "Already have ip232 connection, rejecting new");
+    // already have a connection... accept and close
+    if(rc > -1) {
+      close(rc);
+    }
+  } else {
+    if(rc > -1) {
+      cfg->ip232.fd = rc;
+      cfg->is_connected = TRUE;
+      cfg->ip232.dtr = FALSE;
+      cfg->ip232.dcd = FALSE;
     }
   }
-  LOG_EXIT();
+
+done:
+    LOG_EXIT();
+}
+
+static void
+ip232_thread(dce_config *cfg)
+{
+    LOG_ENTER();
+
+    cfg->dp_ufd.fd = cfg->dp[0];
+    cfg->dp_ufd.cb = ip232_data_cb;
+    uloop_fd_add(&cfg->dp_ufd, ULOOP_READ);
+
+    cfg->sSocket_ufd.fd = cfg->sSocket;
+    cfg->sSocket_ufd.cb = listening_socket_cb;
+    uloop_fd_add(&cfg->sSocket_ufd, ULOOP_READ);
+
+    LOG(LOG_ALL, "Waiting for incoming ip232 connections");
+
+    LOG_EXIT();
 
   return NULL;
 }
@@ -76,19 +88,15 @@ int ip232_init_conn(dce_config *cfg) {
     ELOG(LOG_FATAL, "Could not initialize ip232 server socket");
     exit(-1);
   }
-  if(-1 == pipe(cfg->dp[0])) {
-    ELOG(LOG_FATAL, "ip232 thread incoming IPC pipe could not be created");
-    exit(-1);
-  }
 
-  if(-1 == pipe(cfg->dp[1])) {
+  if(-1 == pipe(cfg->dp)) {
     ELOG(LOG_FATAL, "ip232 thread outgoing IPC pipe could not be created");
     exit(-1);
   }
 
   cfg->sSocket = rc;
   cfg->is_connected = FALSE;
-  spawn_thread(ip232_thread, (void *)cfg, "IP232");
+  ip232_thread(cfg);
   LOG(LOG_INFO, "ip232 device configured");
   LOG_EXIT();
   return 0;
