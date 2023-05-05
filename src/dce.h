@@ -47,6 +47,7 @@ typedef struct dce_config {
   int stopbits;
   int parity;
   int dp[2][2];
+  struct uloop_fd dp_ufd[2];
   int sSocket;
   int is_connected;
   int is_ip232;
