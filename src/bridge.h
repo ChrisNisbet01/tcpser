@@ -14,6 +14,6 @@
 
 int accept_connection(modem_config *);
 int parse_ip_data(modem_config *cfg, unsigned char *data, int len);
-void *bridge_task(void *arg);
+void bridge_task(modem_config *cfg);
 
 #endif

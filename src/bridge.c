@@ -18,6 +18,9 @@
 const char MDM_NO_ANSWER[] = "NO ANSWER\n";
 #define RING_INTERVAL_SECS 2
 
+static void
+do_all_checks(modem_config * cfg);
+
 int accept_connection(modem_config *cfg) {
   LOG_ENTER();
 
@@ -153,48 +156,7 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
 
 static int action_pending = FALSE;
 
-static void line_data_cb(struct uloop_fd * u, unsigned int events)
-{
-    modem_config * const cfg = container_of(u, modem_config, line_data.ufd);
-
-    LOG_ENTER();
-
-    if (u->eof || u->error)
-    {
-        uloop_fd_delete(u);
-        goto done;
-    }
-
-    unsigned char buf[256];
-    if (cfg->line_data.is_connected == TRUE) {
-      LOG(LOG_DEBUG, "Data available on socket");
-      res = line_read(&cfg->line_data, buf, sizeof(buf) - 1);
-      if(0 >= res) {
-        LOG(LOG_INFO, "No socket data read, assume closed peer");
-        writePipe(cfg->cp[0][1], MSG_DISCONNECT);
-        action_pending_change(cfg, true);
-      } else {
-        LOG(LOG_DEBUG, "Read %d bytes from socket", res);
-        writePipe(cfg->cp[0][1], 0); /* reset inactivity timer */
-        buf[res] = '\0';
-        parse_ip_data(cfg, buf, res);
-      }
-    }
-
-done:
-    LOG_EXIT();
-}
-
-static void
-control_pipe_1_read(struct uloop_fd * u, unsigned int events)
-{
-    modem_config * const cfg = container_of(u, modem_config, cp_ufd[1]);
-    unsigned char buf[256];
-
-    res = readPipe(cfg->cp[1][0], buf, sizeof(buf) - 1);
-    LOG(LOG_DEBUG, "IP thread notified");
-    action_pending_change(cfg, false);
-}
+static void line_data_cb(struct uloop_fd * u, unsigned int events);
 
 static void
 action_pending_change(modem_config * cfg, bool new_action_pending)
@@ -218,6 +180,50 @@ action_pending_change(modem_config * cfg, bool new_action_pending)
     }
 }
 
+static void line_data_cb(struct uloop_fd * u, unsigned int events)
+{
+    modem_config * const cfg = container_of(u, modem_config, line_data.ufd);
+
+    LOG_ENTER();
+
+    if (u->eof || u->error)
+    {
+        uloop_fd_delete(u);
+        goto done;
+    }
+
+    if (cfg->line_data.is_connected == TRUE) {
+      unsigned char buf[256];
+
+      LOG(LOG_DEBUG, "Data available on socket");
+      int const res = line_read(&cfg->line_data, buf, sizeof(buf) - 1);
+      if(res < 0) {
+        LOG(LOG_INFO, "No socket data read, assume closed peer");
+        writePipe(cfg->cp[0][1], MSG_DISCONNECT);
+        action_pending_change(cfg, true);
+      } else {
+        LOG(LOG_DEBUG, "Read %d bytes from socket", res);
+        writePipe(cfg->cp[0][1], 0); /* reset inactivity timer */
+        buf[res] = '\0';
+        parse_ip_data(cfg, buf, res);
+      }
+    }
+
+done:
+    LOG_EXIT();
+}
+
+static void
+control_pipe_1_read(struct uloop_fd * u, unsigned int events)
+{
+    modem_config * const cfg = container_of(u, modem_config, cp_ufd[1]);
+    unsigned char buf[256];
+    int const res = readPipe(cfg->cp[1][0], buf, sizeof(buf) - 1);
+    (void)res;
+    LOG(LOG_DEBUG, "IP thread notified");
+    action_pending_change(cfg, false);
+}
+
 static void
 ip_thread(modem_config* cfg)
 {
@@ -233,12 +239,12 @@ static void
 ctrl_thread(modem_config * cfg)
 {
     control_data_st * const control_data = &cfg->control_data;
-    int const new_status = dce_check_control_lines(&cfg->dce_data);
+    int const new_status = dce_get_control_lines(&cfg->dce_data);
 
     if (new_status > -1 && control_data->status != new_status)
     {
         LOG(LOG_DEBUG, "Control Line Change");
-        if ((new_status & DCE_CL_DTR) != (control_data-> & DCE_CL_DTR))
+        if ((new_status & DCE_CL_DTR) != (control_data->status & DCE_CL_DTR))
         {
             if ((new_status & DCE_CL_DTR))
             {
@@ -251,7 +257,7 @@ ctrl_thread(modem_config * cfg)
                 writePipe(cfg->wp[0][1], MSG_DTR_DOWN);
             }
         }
-        if ((new_status & DCE_CL_LE) != (control_data-> & DCE_CL_LE))
+        if ((new_status & DCE_CL_LE) != (control_data->status & DCE_CL_LE))
         {
             if ((new_status & DCE_CL_LE))
             {
@@ -266,8 +272,8 @@ ctrl_thread(modem_config * cfg)
         }
     }
 
-    control_data-> = new_status;
-    if (control_data-> < 0)
+    control_data->status = new_status;
+    if (control_data->status < 0)
     {
         /* Can't obtain status, so exit the program. */
         uloop_done();
@@ -284,39 +290,10 @@ ctrl_thread_timer_cb(struct uloop_timeout * const t)
     uloop_timeout_set(t, 100);
 }
 
-static void bridge_task_outgoing_ipc_handler(struct uloop_fd * u, unsigned int events)
-{
-    modem_config * const cfg = container_of(u, modem_config, mp_ufd[1]);
-
-    LOG_ENTER();
-
-    if (u->eof || u->error)
-    {
-        uloop_fd_delete(u);
-        goto done;
-    }
-
-    LOG(LOG_DEBUG, "Data available on incoming IPC pipe");
-    unsigned char buf[256];
-    int const res = readPipe(cfg->mp[1][0], buf, sizeof(buf));
-    if (res > 0)
-    {
-        switch (buf[0])
-        {
-          case MSG_CALLING:       // accept connection.
-            accept_connection(cfg);
-            break;
-        }
-    }
-
-done:
-    LOG_EXIT();
-}
-
 static void
 check_connection_type_change(modem_config * const cfg)
 {
-  bridge_data_st * consdt bridge_data = &cfg->bridge_data;
+  bridge_data_st * const bridge_data = &cfg->bridge_data;
 
     if(bridge_data->last_conn_type != cfg->conn_type) {
       LOG(LOG_ALL, "Connection status change, handling");
@@ -352,26 +329,7 @@ check_command_mode_change(modem_config * const cfg)
 }
 
 static void
-do_all_checks(modem_config * const cfg)
-{
-  check_connection_type_change(cfg);
-  check_command_mode_change(cfg);
-  check_read_dce_data(cfg);
-  check_start_ring_timer(cfg);
-  check_start_other_timer(cfg);
-  LOG(LOG_ALL, "Waiting for modem/control line/timer/socket activity");
-  LOG(
-      LOG_ALL,
-      "CMD:%d, DCE:%d, LINE:%d, TYPE:%d, HOOK:%d",
-      cfg->is_cmd_mode,
-      cfg->dce_data.is_connected,
-      cfg->line_data.is_connected,
-      cfg->conn_type,
-      cfg->is_off_hook
-  );
-}
-
-static void dce_data_cb(struct uloop_fd * u, int const events)
+dce_data_cb(struct uloop_fd * u, unsigned int const events)
 {
   dce_config * const dce_data = container_of(u, dce_config, ufd);
   modem_config * const cfg = container_of(dce_data, modem_config, dce_data);
@@ -410,7 +368,7 @@ check_read_dce_data(modem_config * const cfg)
   if(cfg->dce_data.is_connected) {
     cfg->dce_data.ufd.fd = dce_rx_fd(&cfg->dce_data);
     cfg->dce_data.ufd.cb = dce_data_cb;
-    uloop_fd_add(&cfg->dce_data.ufd);
+    uloop_fd_add(&cfg->dce_data.ufd, ULOOP_READ);
   }
   else
   {
@@ -450,7 +408,7 @@ handle_ring_timeout_cb(struct uloop_timeout * const t)
 static void
 check_start_ring_timer(modem_config * const cfg)
 {
-  uloop_timeout * const t = &cfg->ring_timer;
+  struct uloop_timeout * const t = &cfg->ring_timer;
 
   if(cfg->is_cmd_mode && cfg->conn_type == MDM_CONN_NONE && cfg->line_data.is_connected)
   {
@@ -481,36 +439,44 @@ handle_other_timeout_cb(struct uloop_timeout * const t)
 }
 
 static void
-check_start_other_timer(modem_condig * const cfg)
+check_start_other_timer(modem_config * const cfg)
 {
-  uloop_timeout * const t = &cfg->other_timer;
-  int timeout_msecs = 0;
-    if(cfg->is_cmd_mode == FALSE) {
-      if(cfg->pre_break_delay == FALSE || cfg->break_len == 3) {
-        LOG(LOG_ALL, "Setting timer for break delay");
-        long long usec;
-        usec = cfg->s[S_REG_GUARD_TIME] * 20000;
-        timeout_msecs = usec / 1000;
-      } else if(cfg->pre_break_delay == TRUE && cfg->break_len > 0) {
-        LOG(LOG_ALL, "Setting timer for inter-break character delay");
-        timeout_msecs = 1000;
-      } else if (cfg->s[30] != 0) {
-        LOG(LOG_ALL, "Setting timer for inactivity delay");
-        timeout_msecs = cfg->s[S_REG_INACTIVITY_TIME] * 10 * 1000;
-      }
+    struct uloop_timeout * const t = &cfg->other_timer;
+    int timeout_msecs = 0;
+
+    if (cfg->is_cmd_mode == FALSE)
+    {
+        if (cfg->pre_break_delay == FALSE || cfg->break_len == 3)
+        {
+            LOG(LOG_ALL, "Setting timer for break delay");
+            long long usec;
+            usec = cfg->s[S_REG_GUARD_TIME] * 20000;
+            timeout_msecs = usec / 1000;
+        }
+        else if (cfg->pre_break_delay == TRUE && cfg->break_len > 0)
+        {
+            LOG(LOG_ALL, "Setting timer for inter-break character delay");
+            timeout_msecs = 1000;
+        }
+        else if (cfg->s[30] != 0)
+        {
+            LOG(LOG_ALL, "Setting timer for inactivity delay");
+            timeout_msecs = cfg->s[S_REG_INACTIVITY_TIME] * 10 * 1000;
+        }
     }
     if (timeout_msecs > 0)
     {
-      uloop_timeout_set(t, timeout_msecs);
+        t->cb = handle_other_timeout_cb;
+        uloop_timeout_set(t, timeout_msecs);
     }
     else
     {
-      uloop_timeout_cancel(t);
+        uloop_timeout_cancel(t);
     }
 }
 
 static void
-wp0_read_handler_cb(stuct uloop_fd * const u, int const events)
+wp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
 {
   modem_config * const cfg = container_of(u, modem_config, wp_ufd[0]);
 
@@ -544,7 +510,7 @@ done:
 }
 
 static void
-cp0_read_handler_cb(stuct uloop_fd * const u, int const events)
+cp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
 {
   modem_config * const cfg = container_of(u, modem_config, cp_ufd[0]);
 
@@ -559,6 +525,7 @@ cp0_read_handler_cb(stuct uloop_fd * const u, int const events)
 
   unsigned char buf[256];
   int const res = readPipe(cfg->cp[0][0], buf, sizeof(buf));
+  (void)res;
   LOG(LOG_DEBUG, "Received %c from ip thread", buf[0]);
   switch (buf[0]) {
     case MSG_DISCONNECT:
@@ -578,7 +545,7 @@ done:
 }
 
 static void
-mp1_read_handler_cb(stuct uloop_fd * const u, int const events)
+mp1_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
 {
   modem_config * const cfg = container_of(u, modem_config, mp_ufd[1]);
 
@@ -594,6 +561,7 @@ mp1_read_handler_cb(stuct uloop_fd * const u, int const events)
   LOG(LOG_DEBUG, "Data available on incoming IPC pipe");
   unsigned char buf[256];
   int const res = readPipe(cfg->mp[1][0], buf, sizeof(buf));
+  (void)res;
   switch (buf[0]) {
     case MSG_CALLING:       // accept connection.
       accept_connection(cfg);
@@ -605,23 +573,37 @@ done:
   LOG_EXIT();
 }
 
+static void
+do_all_checks(modem_config * const cfg)
+{
+  check_connection_type_change(cfg);
+  check_command_mode_change(cfg);
+  check_read_dce_data(cfg);
+  check_start_ring_timer(cfg);
+  check_start_other_timer(cfg);
+  LOG(LOG_ALL, "Waiting for modem/control line/timer/socket activity");
+  LOG(
+      LOG_ALL,
+      "CMD:%d, DCE:%d, LINE:%d, TYPE:%d, HOOK:%d",
+      cfg->is_cmd_mode,
+      cfg->dce_data.is_connected,
+      cfg->line_data.is_connected,
+      cfg->conn_type,
+      cfg->is_off_hook
+  );
+}
+
+void
 bridge_task(modem_config *cfg)
 {
   bridge_data_st * const bridge_data = &cfg->bridge_data;
-  struct timeval timer;
-  struct timeval *ptimer;
-  int max_fd = 0;
-  fd_set readfs;
-  int res = 0;
-  unsigned char buf[256];
-  int rc = 0;
 
   LOG_ENTER();
 
   bridge_data->last_cmd_mode = cfg->is_cmd_mode;
   bridge_data->action_pending = false;
 
-  cfg->mp_ufd[1].cb = bridge_task_outgoing_ipc_handler;
+  cfg->mp_ufd[1].cb = mp1_read_handler_cb;
   cfg->mp_ufd[1].fd = cfg->mp[1][0];
   uloop_fd_add(&cfg->mp_ufd[1], ULOOP_READ);
 

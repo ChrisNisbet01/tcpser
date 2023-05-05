@@ -106,7 +106,6 @@ typedef struct modem_config {
   struct uloop_fd cp_ufd[2];
   int wp[2][2];
   struct uloop_fd wp_ufd[2];
-  struct uloop_fd sSocket_ufd;
 
   bridge_data_st bridge_data;
   control_data_st control_data;

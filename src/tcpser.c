@@ -25,7 +25,28 @@ static char *ip_addr = NULL;
 static char all_busy[255];
 static modem_config cfgs[MAX_MODEMS];
 static int sSocket = -1;
+struct uloop_fd sSocket_ufd;
 
+static void
+listening_socket_handler(struct uloop_fd * u, unsigned int events);
+
+static void
+accept_pending_change(bool const new_accept_pending)
+{
+  accept_pending = new_accept_pending;
+
+  /* Use cfg[0] for the uloop sSocket fd handler. */
+  if (sSocket >= 0 && !accept_pending)
+  {
+      sSocket_ufd.fd = sSocket;
+      sSocket_ufd.cb = listening_socket_handler;
+      uloop_fd_add(&sSocket_ufd, ULOOP_READ);
+  }
+  else
+  {
+    uloop_fd_delete(&sSocket_ufd);
+  }
+}
 static void bridge_task_incoming_ipc_handler(struct uloop_fd * u, unsigned int events)
 {
     modem_config * const cfg = container_of(u, modem_config, mp_ufd[0]);
@@ -44,17 +65,16 @@ static void bridge_task_incoming_ipc_handler(struct uloop_fd * u, unsigned int e
     if(rc > -1) {
       buf[rc] = '\0';
       LOG(LOG_DEBUG, "modem core #%d sent response '%s'", i, buf);
-      accept_pending = FALSE;
+      accept_pending_change(false);
     }
 
 done:
     LOG_EXIT();
 }
 
-static void listening_socket_handler(struct uloop_fd * u, unsigned int events)
+static void
+listening_socket_handler(struct uloop_fd * u, unsigned int events)
 {
-    modem_config * const cfg = container_of(u, modem_config, mp_ufd[0]);
-
     LOG_ENTER();
 
     if (u->eof || u->error)
@@ -69,21 +89,21 @@ static void listening_socket_handler(struct uloop_fd * u, unsigned int events)
       LOG(LOG_DEBUG, "Incoming connection pending");
       // first try for a modem that is listening.
       for(i = 0; i < modem_count; i++) {
-        if(cfg[i].s[0] != 0 && cfg[i].is_off_hook == FALSE) {
+        if(cfgs[i].s[0] != 0 && cfgs[i].is_off_hook == FALSE) {
           // send signal to pipe saying pick up...
           LOG(LOG_DEBUG, "Sending incoming connection to listening modem #%d", i);
-          writePipe(cfg[i].mp[1][1], MSG_CALLING);
-          accept_pending = TRUE;
+          writePipe(cfgs[i].mp[1][1], MSG_CALLING);
+          accept_pending_change(true);
           break;
         }
       }
       // now, send to any non-active modem.
       for(i = 0; i < modem_count; i++) {
-        if(cfg[i].is_off_hook == FALSE) {
+        if(cfgs[i].is_off_hook == FALSE) {
           // send signal to pipe saying pick up...
           LOG(LOG_DEBUG, "Sending incoming connection to non-connected modem #%d", i);
-          writePipe(cfg[i].mp[1][1], MSG_CALLING);
-          accept_pending = TRUE;
+          writePipe(cfgs[i].mp[1][1], MSG_CALLING);
+          accept_pending_change(true);
           break;
         }
       }
@@ -110,10 +130,6 @@ done:
 int main(int argc, char *argv[]) {
   int i;
   int rc = 0;
-  fd_set readfs;
-  int max_fd = 0;
-  unsigned char buf[255];
-  int cSocket;
 
   log_init();
 
@@ -138,14 +154,6 @@ int main(int argc, char *argv[]) {
 
   uloop_init();
 
-  /* Use cfg[0] for the uloop sSocket fd handler. */
-  if (sSocket >= 0)
-  {
-      cfgs[0].sSocket_ufd.fd = sSocket;
-      cfgs[0].sSocket_ufd.cb = listening_socket_handler;
-      uloop_fd_add(&cfgs[0].sSocket_ufd, ULOOP_READ);
-  }
-
   for(i = 0; i < modem_count; i++) {
     LOG(LOG_INFO, "Creating modem #%d", i);
     if(-1 == pipe(cfgs[i].mp[0])) {
@@ -163,79 +171,15 @@ int main(int argc, char *argv[]) {
 
     cfgs[i].line_data.sfd = sSocket;
 
-    bridge_task(cfgs[i]);
-
+    accept_pending_change(false);
+    LOG(LOG_DEBUG, "serial device %s", cfgs[i].dce_data.tty);
+    bridge_task(&cfgs[i]);
   }
+
   LOG(LOG_ALL, "Waiting for incoming connections and/or indicators");
+
   uloop_run();
 
-#if 0
-  for(;;) {
-    FD_ZERO(&readfs);
-    max_fd = 0;
-    for(i = 0; i < modem_count; i++) {
-      FD_SET(cfg[i].mp[0][0], &readfs);
-      max_fd=MAX(max_fd, cfg[i].mp[0][0]);
-    }
-    if(ip_addr != NULL && accept_pending == FALSE) {
-      max_fd=MAX(max_fd, sSocket);
-      FD_SET(sSocket, &readfs);
-    }
-    LOG(LOG_ALL, "Waiting for incoming connections and/or indicators");
-    select(max_fd+1, &readfs, NULL, NULL, NULL);
-    for(i = 0; i < modem_count; i++) {
-      if (FD_ISSET(cfg[i].mp[0][0], &readfs)) {  // child pipe
-        rc = read(cfg[i].mp[0][0], buf, sizeof(buf) -1);
-        if(rc > -1) {
-          buf[rc] = 0;
-          LOG(LOG_DEBUG, "modem core #%d sent response '%s'", i, buf);
-          accept_pending = FALSE;
-        }
-      }
-    }
-    if (ip_addr != NULL && FD_ISSET(sSocket, &readfs)) {  // IP traffic
-      if(!accept_pending) {
-        LOG(LOG_DEBUG, "Incoming connection pending");
-        // first try for a modem that is listening.
-        for(i = 0; i < modem_count; i++) {
-          if(cfg[i].s[0] != 0 && cfg[i].is_off_hook == FALSE) {
-            // send signal to pipe saying pick up...
-            LOG(LOG_DEBUG, "Sending incoming connection to listening modem #%d", i);
-            writePipe(cfg[i].mp[1][1], MSG_CALLING);
-            accept_pending = TRUE;
-            break;
-          }
-        }
-        // now, send to any non-active modem.
-        for(i = 0; i < modem_count; i++) {
-          if(cfg[i].is_off_hook == FALSE) {
-            // send signal to pipe saying pick up...
-            LOG(LOG_DEBUG, "Sending incoming connection to non-connected modem #%d", i);
-            writePipe(cfg[i].mp[1][1], MSG_CALLING);
-            accept_pending = TRUE;
-            break;
-          }
-        }
-        if(i == modem_count) {
-          LOG(LOG_DEBUG, "No open modem to send to, send notice and close");
-          // no connections.., accept and print error
-          cSocket = ip_accept(sSocket);
-          if(cSocket > -1) {
-            // No tracing on this data output
-            if(strlen(all_busy) < 1) {
-              ip_write(cSocket, (unsigned char *)MDM_BUSY, strlen(MDM_BUSY));
-            } else {
-              writeFile(all_busy, cSocket);
-            }
-            close(cSocket);
-          }
-        }
-      }
-    }
-  }
-#endif
-
-done:
   LOG_EXIT();
   return rc;
 }
