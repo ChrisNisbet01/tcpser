@@ -605,8 +605,7 @@ do_all_checks(modem_config * const cfg)
   );
 }
 
-void
-bridge_task(modem_config *cfg)
+void bridge_init(modem_config * const cfg)
 {
   bridge_data_st * const bridge_data = &cfg->bridge_data;
 
@@ -675,7 +674,7 @@ bridge_task(modem_config *cfg)
 }
 
 void
-bridge_task_close(modem_config * const cfg)
+bridge_close(modem_config * const cfg)
 {
   LOG_ENTER();
   dce_close(&cfg->dce_data);
