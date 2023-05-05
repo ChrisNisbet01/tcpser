@@ -188,6 +188,9 @@ static void line_data_cb(struct uloop_fd * u, unsigned int events)
 
     if (u->eof || u->error)
     {
+        LOG(LOG_INFO, "No socket data read, assume closed peer");
+        writePipe(cfg->cp[0][1], MSG_DISCONNECT);
+        action_pending_change(cfg, true);
         uloop_fd_delete(u);
         goto done;
     }
@@ -216,12 +219,14 @@ done:
 static void
 control_pipe_1_read(struct uloop_fd * u, unsigned int events)
 {
+    LOG_ENTER();
     modem_config * const cfg = container_of(u, modem_config, cp_ufd[1]);
     unsigned char buf[256];
     int const res = readPipe(cfg->cp[1][0], buf, sizeof(buf) - 1);
     (void)res;
     LOG(LOG_DEBUG, "IP thread notified");
     action_pending_change(cfg, false);
+    LOG_EXIT();
 }
 
 static void
@@ -630,7 +635,7 @@ bridge_task(modem_config *cfg)
   }
   cfg->cp_ufd[0].cb = cp0_read_handler_cb;
   cfg->cp_ufd[0].fd = cfg->cp[0][0];
-  uloop_fd_add(&cfg->wp_ufd[0], ULOOP_READ);
+  uloop_fd_add(&cfg->cp_ufd[0], ULOOP_READ);
 
   if(-1 == pipe(cfg->cp[1])) {
     ELOG(LOG_FATAL, "IP thread outgoing IPC pipe could not be created");
