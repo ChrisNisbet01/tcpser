@@ -8,8 +8,16 @@
 int log_level = 0;
 FILE *log_file;
 int trace_flags = 0;
-char *log_desc[LOG_TRACE + 1];
-pthread_mutex_t log_mutex;
+static char const * log_desc[LOG_LAST__] = {
+    [LOG_FATAL] = "FATAL",
+    [LOG_ERROR] = "ERROR",
+    [LOG_WARN] = "WARN",
+    [LOG_INFO] = "INFO",
+    [LOG_DEBUG] = "DEBUG",
+    [LOG_ENTER_EXIT] = "ENTER_EXIT",
+    [LOG_ALL] = "DEBUG_X",
+    [LOG_TRACE]=  "TRACE",
+};
 
 static char *get_trace_type(int type) {
   switch(type) {
@@ -41,10 +49,7 @@ int log_init() {
   log_desc[LOG_ENTER_EXIT] =      "ENTER_EXIT";
   log_desc[LOG_ALL] =             "DEBUG_X";
   log_desc[LOG_TRACE]=            "TRACE";
-  if( -1 == pthread_mutex_init(&log_mutex, NULL)) {
-    perror("Could not create Log Mutex");
-    exit(-1);
-  }
+
   return 0;
 }
 
@@ -108,24 +113,16 @@ void log_trace(int type, unsigned char const *line, int len) {
       }
       log_start(LOG_TRACE);
       fprintf(log_file, "%s|%s|%s|", get_trace_type(type), data, text);
+      log_end();
     }
-    log_end();
   }
 }
 
 void log_start(int level) {
-  if(-1 == pthread_mutex_lock(&log_mutex)) {
-    perror("Could not lock the log mutex");
-  } else {
-    // we have the lock.
     fprintf(log_file, "%s: ", log_desc[level]);
-  }
 }
 
 void log_end(void) {
   fprintf(log_file, "\n");
   fflush(log_file);
-  if(-1 == pthread_mutex_unlock(&log_mutex)) {
-    perror("Could not lock the log mutex");
-  }
 }

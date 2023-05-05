@@ -1,15 +1,19 @@
 #ifndef DEBUG_H
 #define DEBUG_H 1
 
-#define LOG_TRACE 10
-#define LOG_ALL 7
-#define LOG_ENTER_EXIT 6
-#define LOG_DEBUG 5
-#define LOG_INFO 4
-#define LOG_WARN 3
-#define LOG_ERROR 2
-#define LOG_FATAL 1
-#define LOG_NONE 0
+enum
+{
+    LOG_NONE = 0,
+    LOG_FATAL = 1,
+    LOG_ERROR = 2,
+    LOG_WARN = 3,
+    LOG_INFO = 4,
+    LOG_DEBUG = 5,
+    LOG_ENTER_EXIT = 6,
+    LOG_ALL = 7,
+    LOG_TRACE = 10,
+    LOG_LAST__
+};
 
 #define TRACE_MODEM_IN    1
 #define TRACE_MODEM_OUT   2
