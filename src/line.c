@@ -8,9 +8,9 @@
 
 void reset_config(line_config *cfg) {
   cfg->fd = -1;
-  cfg->is_telnet = FALSE;
-  cfg->is_data_received = FALSE;
-  cfg->is_connected = FALSE;
+  cfg->is_telnet = false;
+  cfg->is_data_received = false;
+  cfg->is_connected = false;
   nvt_init_config(&cfg->nvt_data);
 }
 
@@ -27,7 +27,7 @@ int line_read(line_config *cfg, unsigned char *data, int len) {
 int line_write(line_config *cfg, unsigned char* data, int len) {
   int retval;
   int i = 0;
-  int double_iac = FALSE;
+  int double_iac = false;
   unsigned char text[1024];
   int text_len = 0;
   int mask = 0x7f;
@@ -40,12 +40,12 @@ int line_write(line_config *cfg, unsigned char* data, int len) {
     while(i < len) {
       if (double_iac) {
         text[text_len++] = NVT_IAC;
-        double_iac = FALSE;
+        double_iac = false;
         i++;
       } else {
         if(NVT_IAC == data[i]) {
           text[text_len++] = NVT_IAC;
-          double_iac = TRUE;
+          double_iac = true;
         } else {
           text[text_len++] = data[i++] & mask;
         }

@@ -7,18 +7,17 @@
 #include "nvt.h"
 
 void nvt_init_config(nvt_vars *vars) {
-  int i; 
-
-  vars->binary_xmit = FALSE;
-  vars->binary_recv = FALSE;
-  for (i = 0; i < 256; i++)
+  vars->binary_xmit = false;
+  vars->binary_recv = false;
+  for (int i = 0; i < 256; i++)
     vars->term[i] = 0;
 }
 
-unsigned char get_nvt_cmd_response(unsigned char action, unsigned char type) {
+unsigned char get_nvt_cmd_response(unsigned char action, bool type)
+{
   unsigned char rc = 0;
 
-  if(type == TRUE) {
+  if(type) {
     switch (action) {
       case NVT_DO:
         rc = NVT_WILL;
@@ -146,7 +145,7 @@ int send_nvt_command(int fd, nvt_vars *vars, nvt_command action, nvt_option opt)
 }
 
 int parse_nvt_command(dce_config *cfg, int fd, nvt_vars *vars, nvt_command action, nvt_option opt) {
-  int accept = FALSE;
+  bool accept = false;
   char txt[20];
   int resp;
 
@@ -158,26 +157,26 @@ int parse_nvt_command(dce_config *cfg, int fd, nvt_vars *vars, nvt_command actio
         case NVT_DO:
           if(!dce_get_parity(cfg)) {
             LOG(LOG_INFO, "Enabling telnet binary xmit");
-            vars->binary_xmit = TRUE;
-            accept = TRUE;
+            vars->binary_xmit = true;
+            accept = true;
           }
           break;
         case NVT_DONT:
           LOG(LOG_INFO, "Disabling telnet binary xmit");
-          vars->binary_xmit = FALSE;
-          accept = TRUE;
+          vars->binary_xmit = false;
+          accept = true;
           break;
         case NVT_WILL:
           if(!dce_get_parity(cfg)) {
             LOG(LOG_INFO, "Enabling telnet binary recv");
-            vars->binary_recv = TRUE;
-            accept = TRUE;
+            vars->binary_recv = true;
+            accept = true;
           }
           break;
         case NVT_WONT:
           LOG(LOG_INFO, "Disabling telnet binary recv");
-          vars->binary_recv = FALSE;
-          accept = TRUE;
+          vars->binary_recv = false;
+          accept = true;
           break;
         default:
           break;
@@ -192,10 +191,10 @@ int parse_nvt_command(dce_config *cfg, int fd, nvt_vars *vars, nvt_command actio
     case NVT_OPT_ENVIRON:             // but telnet seems to expect.
     case NVT_OPT_NEW_ENVIRON:         // them.
     case NVT_OPT_TERMINAL_SPEED:
-      resp = get_nvt_cmd_response(action, TRUE);
+      resp = get_nvt_cmd_response(action, true);
       break;
     default:
-      resp = get_nvt_cmd_response(action, FALSE);
+      resp = get_nvt_cmd_response(action, false);
       break;
   }
   send_nvt_command(fd, vars, resp, opt);

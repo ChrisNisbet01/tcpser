@@ -61,7 +61,7 @@ dce_close(dce_config * cfg)
       cfg->serial = NULL;
     }
   }
-  cfg->is_connected = FALSE;
+  cfg->is_connected = false;
 
   LOG_EXIT();
 }

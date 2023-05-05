@@ -31,10 +31,16 @@ static void
 listening_socket_handler(struct uloop_fd * u, unsigned int events);
 
 static void
-handle_accept_pending_change(bool const new_accept_pending)
+accept_pending_update(bool const new_accept_pending)
 {
     accept_pending = new_accept_pending;
 
+    /* The idea here is that the program stops listening for incoming
+     * connections while there is an outstanding connection request.
+     * The problem with this (also present in the mutli-threaded code) is that
+     * the new incoming IP connections are still there, and still opened - it's
+     * just that this program doesn't get notified about them.
+     */
     if (sSocket >= 0 && !accept_pending)
     {
         if (!sSocket_ufd.registered)
@@ -59,18 +65,19 @@ handle_bridge_ipc_data(struct uloop_fd * u, unsigned int events)
 
     if (u->eof || u->error)
     {
-        uloop_fd_delete(u);
+        LOG(LOG_DEBUG, "Bridge IPC pipe had error. Exiting");
+        uloop_done();
         goto done;
     }
 
     char buf[256];
-    int const rc = read(cfg->mp[0][0], buf, sizeof(buf) - 1);
-    int const i = cfg - &cfg[0];
+    ssize_t const rc = read(cfg->mp[0][0], buf, sizeof(buf) - 1);
+    size_t const modem_instance = cfg - &cfgs[0];
     if (rc > -1)
     {
         buf[rc] = '\0';
-        LOG(LOG_DEBUG, "modem core #%d sent response '%s'", i, buf);
-        handle_accept_pending_change(false);
+        LOG(LOG_DEBUG, "modem core #%zu sent response '%s'", modem_instance, buf);
+        accept_pending_update(false);
     }
 
 done:
@@ -84,7 +91,8 @@ listening_socket_handler(struct uloop_fd * u, unsigned int events)
 
     if (u->eof || u->error)
     {
-        uloop_fd_delete(u);
+        LOG(LOG_DEBUG, "Listening socket had error. Exiting");
+        uloop_done();
         goto done;
     }
 
@@ -96,24 +104,24 @@ listening_socket_handler(struct uloop_fd * u, unsigned int events)
         // first try for a modem that is listening.
         for (i = 0; i < modem_count; i++)
         {
-            if (cfgs[i].s[0] != 0 && cfgs[i].is_off_hook == FALSE)
+            if (cfgs[i].s[0] != 0 && !cfgs[i].is_off_hook)
             {
                 // send signal to pipe saying pick up...
                 LOG(LOG_DEBUG, "Sending incoming connection to listening modem #%d", i);
                 writePipe(cfgs[i].mp[1][1], MSG_CALLING);
-                handle_accept_pending_change(true);
+                accept_pending_update(true);
                 break;
             }
         }
         // now, send to any non-active modem.
         for (i = 0; i < modem_count; i++)
         {
-            if (cfgs[i].is_off_hook == FALSE)
+            if (!cfgs[i].is_off_hook)
             {
                 // send signal to pipe saying pick up...
                 LOG(LOG_DEBUG, "Sending incoming connection to non-connected modem #%d", i);
                 writePipe(cfgs[i].mp[1][1], MSG_CALLING);
-                handle_accept_pending_change(true);
+                accept_pending_update(true);
                 break;
             }
         }
@@ -122,6 +130,7 @@ listening_socket_handler(struct uloop_fd * u, unsigned int events)
             LOG(LOG_DEBUG, "No open modem to send to, send notice and close");
             // no connections.., accept and print error
             int const cSocket = ip_accept(sSocket);
+
             if (cSocket > -1)
             {
                 // No tracing on this data output
@@ -205,7 +214,7 @@ int main(int argc, char * argv[])
 
         cfgs[i].line_data.sfd = sSocket;
 
-        handle_accept_pending_change(false);
+        accept_pending_update(false);
         bridge_init(&cfgs[i]);
     }
 

@@ -78,19 +78,19 @@ void mdm_init_config(modem_config *cfg) {
   cfg->remote_answer[0] = 0;
   cfg->no_answer[0] = 0;
   cfg->inactive[0] = 0;
-  cfg->direct_conn = FALSE;
+  cfg->direct_conn = false;
   cfg->direct_conn_num[0] = 0;
-  cfg->is_binary_negotiated = FALSE;
+  cfg->is_binary_negotiated = false;
 
-  cfg->send_responses = TRUE;
+  cfg->send_responses = true;
   cfg->connect_response = 0;
   cfg->response_code_level = 4;
-  cfg->text_responses = TRUE;
-  cfg->is_echo = TRUE;
-  cfg->is_cmd_mode = TRUE;
+  cfg->text_responses = true;
+  cfg->is_echo = true;
+  cfg->is_cmd_mode = true;
   cfg->conn_type = MDM_CONN_NONE;
-  cfg->is_off_hook = FALSE;
-  cfg->is_ringing = FALSE;
+  cfg->is_off_hook = false;
+  cfg->is_ringing = false;
   cfg->cur_line_idx = 0;
   cfg->rings = 0;
 
@@ -118,35 +118,35 @@ void mdm_init_config(modem_config *cfg) {
   cfg->last_dial_type = 0;
   cfg->disconnect_delay = 0;
 
-  cfg->pre_break_delay = FALSE;
+  cfg->in_pre_break_delay = false;
   cfg->break_len = 0;
 
-  cfg->memory_dial = FALSE;
-  cfg->dsr_active = FALSE;
-  cfg->force_dsr = TRUE;
-  cfg->force_dcd = FALSE;
+  cfg->memory_dial = false;
+  cfg->dsr_active = false;
+  cfg->force_dsr = true;
+  cfg->force_dcd = false;
   cfg->first_ch = 0;
-  cfg->is_cmd_started = FALSE;
-  cfg->allow_transmit = TRUE;
-  cfg->invert_dsr = FALSE;
-  cfg->invert_dcd = FALSE;
+  cfg->is_cmd_started = false;
+  cfg->allow_transmit = true;
+  cfg->invert_dsr = false;
+  cfg->invert_dcd = false;
 
   dce_init_config(&cfg->dce_data);
   line_init_config(&cfg->line_data);
 }
 
-int get_new_cts_state(modem_config *cfg, int up) {
+int get_new_cts_state(modem_config *cfg, bool up) {
   return DCE_CL_CTS;
 }
 
-int get_new_dsr_state(modem_config *cfg, int up) {
+int get_new_dsr_state(modem_config *cfg, bool up) {
   if(cfg->force_dsr || up) {
     return (cfg->invert_dsr ? 0 : DCE_CL_DSR);
   }
   return (cfg->invert_dsr ? DCE_CL_DSR : 0);
 }
 
-int get_new_dcd_state(modem_config *cfg, int up) {
+int get_new_dcd_state(modem_config *cfg, bool up) {
   if(cfg->force_dcd || up) {
     return (cfg->invert_dcd ? 0 : DCE_CL_DCD);
   }
@@ -155,7 +155,7 @@ int get_new_dcd_state(modem_config *cfg, int up) {
 
 int mdm_set_control_lines(modem_config *cfg) {
   int state = 0;
-  int up = (cfg->conn_type == MDM_CONN_NONE ? FALSE : TRUE);
+  bool up = cfg->conn_type != MDM_CONN_NONE;
 
   state |= get_new_cts_state(cfg, up);
   state |= get_new_dsr_state(cfg, up);
@@ -163,9 +163,9 @@ int mdm_set_control_lines(modem_config *cfg) {
 
   LOG(LOG_INFO,
       "Control Lines: DSR:%d DCD:%d CTS:%d",
-      ((state & DCE_CL_DSR) != 0 ? 1 : 0),
-      ((state & DCE_CL_DCD) != 0 ? 1 : 0),
-      ((state & DCE_CL_CTS) != 0 ? 1 : 0)
+      (state & DCE_CL_DSR) != 0,
+      (state & DCE_CL_DCD) != 0,
+      (state & DCE_CL_CTS) != 0
      );
 
   dce_set_control_lines(&cfg->dce_data, state);
@@ -227,9 +227,9 @@ void off_hook(modem_config *cfg) {
 
 int mdm_off_hook(modem_config *cfg) {
   off_hook(cfg);
-  if(cfg->is_ringing == TRUE) {
+  if(cfg->is_ringing) {
+    cfg->is_ringing = false;
     cfg->conn_type = MDM_CONN_INCOMING;
-    cfg->is_ringing = FALSE;
   }
   if(cfg->conn_type == MDM_CONN_INCOMING) {
     mdm_set_control_lines(cfg);
@@ -238,17 +238,17 @@ int mdm_off_hook(modem_config *cfg) {
 }
 
 int mdm_answer(modem_config *cfg) {
-  if(cfg->is_ringing == TRUE) {
-    cfg->is_ringing = FALSE;
+  if(cfg->is_ringing) {
+    cfg->is_ringing = false;
     cfg->conn_type = MDM_CONN_INCOMING;
     off_hook(cfg);
-    cfg->is_cmd_mode = FALSE;
+    cfg->is_cmd_mode = false;
     mdm_set_control_lines(cfg);
     mdm_print_speed(cfg);
   } else if(cfg->conn_type != MDM_CONN_NONE) {
     // we are connected, just go off hook.
     off_hook(cfg);
-    cfg->is_cmd_mode = FALSE;
+    cfg->is_cmd_mode = false;
     mdm_set_control_lines(cfg);
   } else {
     mdm_send_response(MDM_RESP_NO_CARRIER, cfg);
@@ -260,7 +260,7 @@ int mdm_answer(modem_config *cfg) {
 
 int mdm_connect(modem_config *cfg) {
   off_hook(cfg);
-  cfg->is_cmd_mode = FALSE;
+  cfg->is_cmd_mode = false;
   if(cfg->conn_type == MDM_CONN_NONE) {
     if(line_connect(&cfg->line_data, cfg->dialno) == 0) {
       cfg->conn_type = MDM_CONN_OUTGOING;
@@ -278,17 +278,17 @@ int mdm_listen(modem_config *cfg) {
   return line_listen(&cfg->line_data);
 }
 
-int mdm_disconnect(modem_config* cfg, unsigned char force) {
+int mdm_disconnect(modem_config* cfg, bool force) {
   int type;
 
   LOG_ENTER();
   LOG(LOG_INFO, "Disconnecting modem");
-  cfg->is_cmd_mode = TRUE;
-  cfg->is_off_hook = FALSE;
+  cfg->is_cmd_mode = true;
+  cfg->is_off_hook = false;
   cfg->break_len = 0;
-  cfg->is_ringing = FALSE;
-  cfg->pre_break_delay = FALSE;
-  cfg->is_binary_negotiated = FALSE;
+  cfg->is_ringing = false;
+  cfg->in_pre_break_delay = false;
+  cfg->is_binary_negotiated = false;
   if(cfg->direct_conn && !force) {
     LOG(LOG_INFO, "Direct connection active, maintaining link");
   } else {
@@ -312,7 +312,7 @@ int mdm_disconnect(modem_config* cfg, unsigned char force) {
 }
 
 int mdm_parse_cmd(modem_config* cfg) {
-  int done = FALSE;
+  bool done = false;
   int index = 0;
   int num = 0;
   int start = 0;
@@ -325,7 +325,7 @@ int mdm_parse_cmd(modem_config* cfg) {
   LOG_ENTER();
   LOG(LOG_DEBUG, "Evaluating AT%s", command);
 
-  while(TRUE != done ) {
+  while(!done) {
     if(cmd != AT_CMD_ERR) {
       cmd = getcmd(command, len, &index, &num, &start, &end);
       LOG(LOG_DEBUG,
@@ -373,7 +373,7 @@ int mdm_parse_cmd(modem_config* cfg) {
           cfg->last_dial_type = (unsigned char)num;
           strncpy((char *)cfg->last_dialno, (char *)command+start, end - start);
           cfg->last_dialno[end - start] = '\0';
-          cfg->memory_dial = FALSE;
+          cfg->memory_dial = false;
         } else if (num == 'L') {
           strncpy(cfg->dialno, cfg->last_dialno, strlen(cfg->last_dialno));
           cfg->dial_type = cfg->last_dial_type;
@@ -390,22 +390,22 @@ int mdm_parse_cmd(modem_config* cfg) {
           mdm_connect(cfg);
         } else {
           mdm_off_hook(cfg);
-          cfg->is_cmd_mode = FALSE;
+          cfg->is_cmd_mode = false;
         }
         done = TRUE;
         break;
       case 'E':   // still need to define #2
         if(num == 0)
-          cfg->is_echo = FALSE;
+          cfg->is_echo = false;
         else if(num == 1)
-          cfg->is_echo = TRUE;
+          cfg->is_echo = true;
         else {
           cmd = AT_CMD_ERR;
         }
         break;
       case 'H':
           if(num == 0) {
-            mdm_disconnect(cfg, FALSE);
+            mdm_disconnect(cfg, false);
           } else if(num == 1) {
             mdm_off_hook(cfg);
           } else
@@ -439,11 +439,11 @@ int mdm_parse_cmd(modem_config* cfg) {
         break;
       case 'Q':   // still need to define #2
         if(num == 0)
-          cfg->send_responses = TRUE;
+          cfg->send_responses = true;
         else if(num == 1)
-          cfg->send_responses = FALSE;
+          cfg->send_responses = false;
         else if(num == 2)  // this should be yes orig/no answer.
-          cfg->send_responses = TRUE;
+          cfg->send_responses = true;
         else {
           cmd = AT_CMD_ERR;
         }
@@ -515,9 +515,9 @@ int mdm_parse_cmd(modem_config* cfg) {
         break;
       case 'V':   // done
         if(num == 0)
-          cfg->text_responses = FALSE;
+          cfg->text_responses = false;
         else if(num == 1)
-          cfg->text_responses = TRUE;
+          cfg->text_responses = true;
         else {
           cmd=AT_CMD_ERR;
         }
@@ -551,11 +551,11 @@ int mdm_parse_cmd(modem_config* cfg) {
       case AT_CMD_FLAG_EXT + 'C':
         switch(num) {
           case 0:
-            cfg->force_dcd = TRUE;
+            cfg->force_dcd = true;
             mdm_set_control_lines(cfg);
             break;
           case 1:
-            cfg->force_dcd = FALSE;
+            cfg->force_dcd = false;
             mdm_set_control_lines(cfg);
             break;
           default:
@@ -634,22 +634,22 @@ int mdm_handle_char(modem_config *cfg, unsigned char ch) {
       // we have a line, process.
       cfg->cur_line[cfg->cur_line_idx] = 0;
       mdm_parse_cmd(cfg);
-      cfg->first_ch = 0;
-      cfg->is_cmd_started = FALSE;
+      cfg->first_ch = '\0';
+      cfg->is_cmd_started = false;
     } else {
       cfg->cur_line[cfg->cur_line_idx++ % sizeof(cfg->cur_line)] = ch_raw;
     }
-  } else if(cfg->first_ch) { // we already got our first char
+  } else if(cfg->first_ch != '\0') { // we already got our first char
     // if we received a 't' and the case of both chars is the same, start
     if(((ch_raw & 0x5f) == 'T') && ((cfg->first_ch & 0x20) == (ch_raw & 0x20))) {
-      cfg->is_cmd_started = TRUE;
+      cfg->is_cmd_started = true;
       dce_detect_parity(&cfg->dce_data, cfg->first_ch, ch);
       LOG(LOG_ALL,"'T' parsed in serial stream, switching to command parse mode");
     } else if(ch_raw == '/') {
       LOG(LOG_ALL,"'/' parsed in the serial stream, replaying last command");
       cfg->cur_line_idx = cfg->last_line_idx;
       mdm_parse_cmd(cfg);
-      cfg->is_cmd_started = FALSE;
+      cfg->is_cmd_started = false;
     } else if((ch_raw & 0x5f) != 'A') {
       cfg->first_ch = 0;
     }
@@ -662,7 +662,7 @@ int mdm_handle_char(modem_config *cfg, unsigned char ch) {
 
 int mdm_clear_break(modem_config* cfg) {
   cfg->break_len = 0;
-  cfg->pre_break_delay = FALSE;
+  cfg->in_pre_break_delay = false;
   return 0;
 }
 
@@ -673,28 +673,28 @@ int mdm_handle_timeout(modem_config *cfg) {
     cfg->is_cmd_mode = TRUE;
     mdm_send_response(MDM_RESP_OK, cfg);
     mdm_clear_break(cfg);
-  } else if(cfg->pre_break_delay == FALSE) {
+  } else if(!cfg->in_pre_break_delay) {
     // pre break wait over.
     LOG(LOG_DEBUG, "Initial Break Delay detected");
-    cfg->pre_break_delay = TRUE;
-  } else if(cfg->pre_break_delay == TRUE && cfg->break_len > 0) {
+    cfg->in_pre_break_delay = true;
+  } else if(cfg->in_pre_break_delay && cfg->break_len > 0) {
     LOG(LOG_ALL, "Inter-break-char delay time exceeded");
     mdm_clear_break(cfg);
   } else if(cfg->s[S_REG_INACTIVITY_TIME] != 0) {
     // timeout...
     LOG(LOG_INFO, "DTE communication inactivity timeout");
-    mdm_disconnect(cfg, FALSE);
+    mdm_disconnect(cfg, false);
   }
   return 0;
 }
 
 int mdm_send_ring(modem_config *cfg) {
   LOG(LOG_DEBUG, "Sending 'RING' to modem");
-  cfg->is_ringing = TRUE;
+  cfg->is_ringing = true;
   mdm_send_response(MDM_RESP_RING, cfg);
   cfg->rings++;
   LOG(LOG_ALL,"Sent #%d ring", cfg->rings);
-  if(cfg->is_cmd_mode == FALSE || (cfg->s[S_REG_RINGS] != 0 && cfg->rings >= cfg->s[S_REG_RINGS])) {
+  if(!cfg->is_cmd_mode || (cfg->s[S_REG_RINGS] != 0 && cfg->rings >= cfg->s[S_REG_RINGS])) {
     mdm_answer(cfg);
   }
   return 0;
@@ -715,7 +715,7 @@ int mdm_parse_data(modem_config *cfg, unsigned char *data, int len) {
           LOG(LOG_DEBUG, "Break character received");
           cfg->break_len++;
           if(cfg->break_len > 3) {  // more than 3, considered invalid
-            cfg->pre_break_delay = FALSE;
+            cfg->in_pre_break_delay = false;
             cfg->break_len = 0;
           }
         } else {

@@ -3,6 +3,8 @@
 
 #include <libubox/uloop.h>
 
+#include <stdbool.h>
+
 typedef enum {
   MDM_RESP_OK =             0,
   MDM_RESP_CONNECT =        1,
@@ -58,14 +60,11 @@ typedef enum {
 #define MDM_CONN_OUTGOING 1
 #define MDM_CONN_INCOMING 2
 
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
-#endif
-
 #include "dce.h"
 #include "line.h"
 #include "nvt.h"
+
+#include <stdbool.h>
 
 typedef struct x_config {
 } x_config;
@@ -120,30 +119,30 @@ typedef struct modem_config {
   char local_answer[256];
   char remote_answer[256];
   char inactive[256];
-  int direct_conn;
+  bool direct_conn;
   char direct_conn_num[256];
 
   // need to eventually change these
   dce_config dce_data;
   line_config line_data;
   int line_speed;
-  int line_speed_follows_port_speed;
+  bool line_speed_follows_port_speed;
   int conn_type;
-  int is_ringing;
-  int is_off_hook;
-  int dsr_active;
-  int force_dsr;
-  int force_dcd;
-  int invert_dsr;
-  int invert_dcd;
-  int allow_transmit;
-  int is_binary_negotiated;
+  bool is_ringing;
+  bool is_off_hook;
+  bool dsr_active;
+  bool force_dsr;
+  bool force_dcd;
+  bool invert_dsr;
+  bool invert_dcd;
+  bool allow_transmit;
+  bool is_binary_negotiated;
   int rings;
   // command information
-  int pre_break_delay;
+  bool in_pre_break_delay;
   unsigned char first_ch;
-  int is_cmd_started;
-  int is_cmd_mode;
+  bool is_cmd_started;
+  bool is_cmd_mode;
   char cur_line[1024];
   int cur_line_idx;
   int last_line_idx;
@@ -152,13 +151,13 @@ typedef struct modem_config {
   char last_dialno[256];
   char dial_type;
   char last_dial_type;
-  int memory_dial;
+  bool memory_dial;
   // modem config
   int connect_response;
   int response_code_level;
-  int send_responses;
-  int text_responses;
-  int is_echo;
+  bool send_responses;
+  bool text_responses;
+  bool is_echo;
   int s[100];
   int break_len;
   int disconnect_delay;
@@ -167,9 +166,9 @@ typedef struct modem_config {
 
 void mdm_init(void);
 void mdm_init_config(modem_config *cfg);
-int get_new_cts_state(modem_config *cfg, int up);
-int get_new_dsr_state(modem_config *cfg, int up);
-int get_new_dcd_state(modem_config *cfg, int up);
+int get_new_cts_state(modem_config *cfg, bool up);
+int get_new_dsr_state(modem_config *cfg, bool up);
+int get_new_dcd_state(modem_config *cfg, bool up);
 int mdm_set_control_lines(modem_config *cfg);
 void mdm_write_char(modem_config *cfg, unsigned char data);
 void mdm_write(modem_config *cfg, unsigned char *data, int len);
@@ -179,7 +178,7 @@ int mdm_answer(modem_config *cfg);
 int mdm_print_speed(modem_config *cfg);
 int mdm_connect(modem_config *cfg);
 int mdm_listen(modem_config *cfg);
-int mdm_disconnect(modem_config *cfg, unsigned char force);
+int mdm_disconnect(modem_config *cfg, bool force);
 int mdm_parse_cmd(modem_config *cfg);
 int mdm_handle_char(modem_config *cfg, unsigned char ch);
 int mdm_clear_break(modem_config *cfg);

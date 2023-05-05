@@ -1,11 +1,6 @@
 #ifndef SERIAL_H
 #define SERIAL_H 1
 
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
-#endif
-
 int ser_get_bps_const(int speed);
 int ser_init_conn(char const *tty, int speed, int stopbits);
 int ser_set_flow_control(int fd, unsigned iflag, unsigned cflag);

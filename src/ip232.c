@@ -32,9 +32,9 @@ listening_socket_cb(struct uloop_fd * const u, unsigned int const events)
   } else {
     if(rc > -1) {
       cfg->ip232.fd = rc;
-      cfg->is_connected = TRUE;
-      cfg->ip232.dtr = FALSE;
-      cfg->ip232.dcd = FALSE;
+      cfg->is_connected = true;
+      cfg->ip232.dtr = false;
+      cfg->ip232.dcd = false;
     }
   }
 
@@ -68,7 +68,7 @@ int ip232_init_conn(dce_config *cfg) {
   }
 
   cfg->sSocket = rc;
-  cfg->is_connected = FALSE;
+  cfg->is_connected = false;
   ip232_thread(cfg);
   LOG(LOG_INFO, "ip232 device configured");
   LOG_EXIT();
@@ -103,10 +103,10 @@ int ip232_get_control_lines(dce_config *cfg) {
 }
 
 int ip232_set_control_lines(dce_config *cfg, int state) {
-  int dcd;
+  bool dcd;
   unsigned char cmd[2];
 
-  dcd = (state & DCE_CL_DCD) ? TRUE : FALSE;
+  dcd = (state & DCE_CL_DCD) != 0;
   LOG(LOG_DEBUG, "ip232 control line state: %x", dcd);
   if (dcd != cfg->ip232.dcd) {
     LOG(LOG_DEBUG, "reconfiguring virtual DCD");
@@ -125,7 +125,7 @@ int ip232_set_control_lines(dce_config *cfg, int state) {
 int ip232_write(dce_config *cfg, unsigned char* data, int len) {
   int retval;
   int i = 0;
-  int double_iac = FALSE;
+  bool double_iac = false;
   unsigned char text[1024];
   int text_len = 0;
 
@@ -135,12 +135,12 @@ int ip232_write(dce_config *cfg, unsigned char* data, int len) {
     while(i < len) {
       if (double_iac) {
         text[text_len++] = 255;
-        double_iac = FALSE;
+        double_iac = false;
         i++;
       } else {
         if(255 == data[i]) {
           text[text_len++] = 255;
-          double_iac = TRUE;
+          double_iac = true;
         } else {
           text[text_len++] = data[i++];
         }
@@ -177,7 +177,7 @@ int ip232_read(dce_config *cfg, unsigned char *data, int len) {
     if (0 >= res) {
       LOG(LOG_INFO, "No ip232 socket data read, assume closed peer");
       ip_disconnect(cfg->ip232.fd);
-      cfg->is_connected = FALSE;
+      cfg->is_connected = false;
     } else {
       LOG(LOG_DEBUG, "Read %d bytes from ip232 socket", res);
       log_trace(TRACE_MODEM_IN, buf, res);
@@ -185,10 +185,10 @@ int ip232_read(dce_config *cfg, unsigned char *data, int len) {
       while(i < res) {
         ch = buf[i];
         if (cfg->ip232.iac) {
-          cfg->ip232.iac = FALSE;
+          cfg->ip232.iac = false;
           switch (ch) {
             case 0:
-              cfg->ip232.dtr = FALSE;
+              cfg->ip232.dtr = falsse;
               LOG(LOG_DEBUG, "Virtual DTR line down");
               break;
             case 1:

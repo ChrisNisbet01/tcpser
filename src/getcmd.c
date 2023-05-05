@@ -5,19 +5,19 @@
 #include "getcmd.h"
 
 int getData(char line[],
-            int* index, 
-            int len, 
+            int* index,
+            int len,
             int* data_start,
             int* data_end,
-            int complex_parse
+            bool complex_parse
            ) {
-  int alpha = FALSE;
-  int done = FALSE;
+  bool alpha = false;
+  bool done = false;
 
   *data_start = *index;
 
-  while(*index < len && done != TRUE) {
-    // I'm going to assume either 
+  while(*index < len && !done) {
+    // I'm going to assume either
     //    a number
     //    a string with a space
     switch(line[*index]) {
@@ -66,13 +66,13 @@ int getData(char line[],
 
 int getNumber(char line[], int *index, int len) {
   int num = 0;
-  int found = FALSE;
+  bool found = false;
 
   while(*index < len && 0 != isdigit((int)line[*index])) {
     num = num * 10 + line[(*index)++] - '0';
-    found = 1;
+    found = true;
   }
-  if(FALSE == found)
+  if(!found)
     return -1;
   return num;
 }
@@ -85,10 +85,10 @@ int skip(char line[], int *index, int len, char ch) {
 }
 
 int getCommand(char line[],
-               int flags, 
-               int* index, 
-               int* num, 
-               int len 
+               int flags,
+               int* index,
+               int* num,
+               int len
                ) {
   int cmd = line[(*index)++];
 
@@ -97,10 +97,10 @@ int getCommand(char line[],
 }
 
 int parseCommand(char line[],
-                 int flags, 
-                 int *index, 
-                 int *num, 
-                 int len 
+                 int flags,
+                 int *index,
+                 int *num,
+                 int len
                 ) {
   int cmd = getCommand(line, flags, index, num, len);
 
@@ -112,11 +112,11 @@ int parseCommand(char line[],
 int parseRegister(char line[],
                   int flags,
                   int *index,
-                  int *num, 
+                  int *num,
                   int len,
-                  int *data_start, 
+                  int *data_start,
                   int *data_end,
-                  int complex_parse
+                  bool complex_parse
                  ) {
   // need to handle S<num>?, which queries that S register.
   int cmd = 0;
@@ -148,9 +148,9 @@ int parseRegister(char line[],
 
 int getcmd(char line[],
            int len,
-           int *index, 
-           int *num, 
-           int *data_start, 
+           int *index,
+           int *num,
+           int *data_start,
            int *data_end
           ) {
   int cmd = AT_CMD_END;
@@ -260,7 +260,7 @@ int getcmd(char line[],
         }
         return cmd;
       case 'S':
-        return parseRegister(line, AT_CMD_FLAG_BAS, index, num, len, data_start, data_end, FALSE);
+        return parseRegister(line, AT_CMD_FLAG_BAS, index, num, len, data_start, data_end, false);
       default:
         return parseCommand(line, AT_CMD_FLAG_BAS, index, num, len);
     }

@@ -4,13 +4,15 @@
 #include "nvt.h"
 #include <libubox/uloop.h>
 
+#include <stdbool.h>
+
 typedef struct line_config {
   int fd;
   struct uloop_fd ufd;
   int sfd;
-  int is_connected;
-  int is_telnet;
-  int is_data_received;
+  bool is_connected;
+  bool is_telnet;
+  bool is_data_received;
   nvt_vars nvt_data;
 } line_config;
 

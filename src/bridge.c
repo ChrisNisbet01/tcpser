@@ -18,6 +18,9 @@
 static const char MDM_NO_ANSWER[] = "NO ANSWER\n";
 static unsigned int const ring_interval_secs = 2;
 #define TEXT_BUF_SIZE 1025
+static int action_pending = false;
+
+static void line_data_cb(struct uloop_fd * u, unsigned int events);
 
 static void
 do_all_checks(modem_config * cfg);
@@ -48,8 +51,8 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
   unsigned char text[TEXT_BUF_SIZE];
   int text_len = 0;
 
-  if(cfg->line_data.is_data_received == FALSE) {
-    cfg->line_data.is_data_received = TRUE;
+  if(!cfg->line_data.is_data_received) {
+    cfg->line_data.is_data_received = true;
     if((data[0] == 0xff) || (data[0] == 0x1a)) {
       //line_write(cfg, (char*)TELNET_NOTICE,strlen(TELNET_NOTICE));
       LOG(LOG_INFO, "Detected telnet");
@@ -66,10 +69,10 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
     }
   }
 
-  if(cfg->line_data.is_telnet == TRUE) {
+  if(cfg->line_data.is_telnet) {
     // once the serial port has seen a bit of data and telnet is active,
     // we can decide on binary transmit, not before
-    if(cfg->is_binary_negotiated == FALSE) {
+    if(!cfg->is_binary_negotiated) {
       if(dce_get_parity(&cfg->dce_data)) {
         // send explicit notice this connection is not 8 bit clean
         send_nvt_command(cfg->line_data.fd,
@@ -154,10 +157,6 @@ int parse_ip_data(modem_config *cfg, unsigned char *data, int len) {
   return 0;
 }
 
-static int action_pending = FALSE;
-
-static void line_data_cb(struct uloop_fd * u, unsigned int events);
-
 static void
 action_pending_change(modem_config * cfg, bool new_action_pending)
 {
@@ -165,10 +164,10 @@ action_pending_change(modem_config * cfg, bool new_action_pending)
 
     if (!action_pending
         && cfg->conn_type != MDM_CONN_NONE
-        && cfg->is_cmd_mode == FALSE
+        && !cfg->is_cmd_mode
         && cfg->line_data.fd > -1
-        && cfg->line_data.is_connected == TRUE
-        )
+        && cfg->line_data.is_connected
+    )
     {
         cfg->line_data.ufd.cb = line_data_cb;
         cfg->line_data.ufd.fd = cfg->line_data.fd;
@@ -356,7 +355,7 @@ dce_data_cb(struct uloop_fd * u, unsigned int const events)
        && cfg->is_off_hook) {
       // this handles the case where atdt/ata goes off hook, but no
       // connection
-      mdm_disconnect(cfg, FALSE);
+      mdm_disconnect(cfg, false);
     } else {
       mdm_parse_data(cfg, buf, res);
     }
@@ -397,8 +396,8 @@ handle_ring_timeout(modem_config * const cfg)
       } else {
         writeFile(cfg->no_answer, cfg->line_data.fd);
       }
-      cfg->is_ringing = FALSE;
-      mdm_disconnect(cfg, FALSE);
+      cfg->is_ringing = false;
+      mdm_disconnect(cfg, false);
     }
     else
     {
@@ -458,14 +457,14 @@ check_start_other_timer(modem_config * const cfg)
     struct uloop_timeout * const t = &cfg->other_timer;
     int timeout_msecs = 0;
 
-    if (cfg->is_cmd_mode == FALSE)
+    if (!cfg->is_cmd_mode)
     {
-        if (cfg->pre_break_delay == FALSE || cfg->break_len == 3)
+        if (!cfg->in_pre_break_delay || cfg->break_len == 3)
         {
             LOG(LOG_ALL, "Setting timer for break delay");
             timeout_msecs = cfg->s[S_REG_GUARD_TIME] * 20;
         }
-        else if (cfg->pre_break_delay == TRUE && cfg->break_len > 0)
+        else if (cfg->in_pre_break_delay && cfg->break_len > 0)
         {
             LOG(LOG_ALL, "Setting timer for inter-break character delay");
             timeout_msecs = 1000;
@@ -509,7 +508,7 @@ wp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
       case MSG_DTR_DOWN:
         // DTR drop, close any active connection and put
         // in cmd_mode
-        mdm_disconnect(cfg, FALSE);
+        mdm_disconnect(cfg, false);
         break;
       default:
         break;
@@ -544,9 +543,9 @@ cp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
       if(cfg->direct_conn == TRUE) {
         // what should we do here...
         LOG(LOG_ERROR, "Direct Connection Link broken, disconnecting and awaiting new direct connection");
-        mdm_disconnect(cfg, TRUE);
+        mdm_disconnect(cfg, true);
       } else {
-        mdm_disconnect(cfg, FALSE);
+        mdm_disconnect(cfg, false);
       }
       break;
   }
@@ -648,7 +647,7 @@ void bridge_init(modem_config * const cfg)
 
   mdm_set_control_lines(cfg);
   bridge_data->last_conn_type = cfg->conn_type;
-  cfg->allow_transmit = FALSE;
+  cfg->allow_transmit = false;
   // call some functions behind the scenes
   if(cfg->cur_line_idx) {
     mdm_parse_cmd(cfg);

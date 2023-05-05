@@ -3,6 +3,8 @@
 
 #include "dce.h"
 
+#include <stdbool.h>
+
 typedef enum {
   NVT_SE = 240,
   NVT_NOP = 241,
@@ -35,11 +37,6 @@ typedef enum {
 #define NVT_SB_IS 0
 #define NVT_SB_SEND 1
 
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
-#endif
-
 typedef struct nvt_vars {
   int binary_xmit;
   int binary_recv;
@@ -47,7 +44,7 @@ typedef struct nvt_vars {
 } nvt_vars;
 
 void nvt_init_config(nvt_vars *vars);
-unsigned char get_nvt_cmd_response(unsigned char action, unsigned char type);
+unsigned char get_nvt_cmd_response(unsigned char action, bool type);
 int parse_nvt_subcommand(dce_config *cfg, int fd, nvt_vars *vars , unsigned char *data, int len);
 int parse_nvt_command(dce_config *cfg, int fd, nvt_vars *vars, nvt_command action, nvt_option opt);
 int send_nvt_command(int fd, nvt_vars *vars, nvt_command action, nvt_option opt);

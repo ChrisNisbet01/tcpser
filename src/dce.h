@@ -35,9 +35,9 @@ enum {
 };
 
 typedef struct ip232 {
-  int dtr;
-  int dcd;
-  int iac;
+  bool dtr;
+  bool dcd;
+  bool iac;
   int fd;
 } ip232;
 
@@ -48,8 +48,8 @@ typedef struct dce_config {
   int parity;
   int sSocket;
   struct uloop_fd sSocket_ufd;
-  int is_connected;
-  int is_ip232;
+  bool is_connected;
+  bool is_ip232;
   struct uloop_fd ufd;
   ip232 ip232;
   serial_side_api_st *serial; /* Used when !is_ip232. */

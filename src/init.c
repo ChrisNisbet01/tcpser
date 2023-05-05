@@ -94,8 +94,8 @@ int init(int argc,
     int opt = 0;
     int trace_flags = 0;
     char * tok;
-    int dce_set = FALSE;
-    int tty_set = FALSE;
+    bool dce_set = false;
+    bool tty_set = false;
 
     LOG_ENTER();
     mdm_init_config(&cfg[0]);
@@ -183,7 +183,7 @@ int init(int argc,
         case 's':
             cfg[i].dce_data.port_speed = atoi(optarg);
             LOG(LOG_ALL, "Setting DTE speed to %d", cfg[i].dce_data.port_speed);
-            if (dce_set == FALSE)
+            if (!dce_set)
                 cfg[i].line_speed = cfg[i].dce_data.port_speed;
             cfg[i].s[S_REG_SPEED] = baud_to_sval(cfg[i].dce_data.port_speed);
             break;
@@ -200,11 +200,11 @@ int init(int argc,
             {
                 if (++i < max_modem)
                 {
-                    dce_set = FALSE;
+                    dce_set = false;
                     mdm_init_config(&cfg[i]);
                     cfg[i].dce_data.port_speed = cfg[i - 1].dce_data.port_speed;
                     cfg[i].line_speed = cfg[i - 1].line_speed;
-                    cfg[i].dce_data.is_ip232 = FALSE;
+                    cfg[i].dce_data.is_ip232 = false;
                     strncpy((char *)cfg[i].cur_line, (char *)cfg[i - 1].cur_line, sizeof(cfg[i].cur_line));
                     strncpy((char *)cfg[i].local_connect, (char *)cfg[i - 1].local_connect, sizeof(cfg[i].local_connect));
                     strncpy((char *)cfg[i].remote_connect, (char *)cfg[i - 1].remote_connect, sizeof(cfg[i].remote_connect));
@@ -227,7 +227,7 @@ int init(int argc,
         case 'S':
             cfg[i].line_speed = atoi(optarg);
             dce_set = TRUE;
-            cfg[i].line_speed_follows_port_speed = FALSE;
+            cfg[i].line_speed_follows_port_speed = false;
             break;
         case 'D':
             cfg[i].direct_conn = TRUE;

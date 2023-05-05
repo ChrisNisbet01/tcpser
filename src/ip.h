@@ -1,11 +1,6 @@
 #ifndef IP_H
 #define IP_H
 
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
-#endif
-
 int ip_init(void);
 int ip_init_server_conn(char *ip, int port);
 int ip_connect(char *ip);
