@@ -168,12 +168,14 @@ action_pending_change(modem_config * cfg, bool new_action_pending)
         && !cfg->is_cmd_mode
         && cfg->line_data.fd > -1
         && cfg->line_data.is_connected
-        && !cfg->line_data.ufd.registered
     )
     {
-        cfg->line_data.ufd.cb = line_data_cb;
-        cfg->line_data.ufd.fd = cfg->line_data.fd;
-        uloop_fd_add(&cfg->line_data.ufd, ULOOP_READ);
+        if (!cfg->line_data.ufd.registered)
+        {
+            cfg->line_data.ufd.cb = line_data_cb;
+            cfg->line_data.ufd.fd = cfg->line_data.fd;
+            uloop_fd_add(&cfg->line_data.ufd, ULOOP_READ);
+        }
     }
     else if (cfg->line_data.ufd.registered)
     {
@@ -192,7 +194,6 @@ static void line_data_cb(struct uloop_fd * u, unsigned int events)
         LOG(LOG_INFO, "No socket data read, assume closed peer");
         writePipe(cfg->cp[0][1], MSG_DISCONNECT);
         action_pending_change(cfg, true);
-        uloop_fd_delete(u);
         goto done;
     }
 
@@ -235,7 +236,7 @@ cp1_read_handler_cb(struct uloop_fd * u, unsigned int events)
 }
 
 static void
-ip_thread(modem_config* cfg)
+ip_monitoring_init(modem_config* cfg)
 {
   LOG_ENTER();
   action_pending_change(cfg, action_pending);
@@ -389,19 +390,23 @@ done:
 static void
 check_read_dce_data(modem_config * const cfg)
 {
-  LOG_ENTER();
+    LOG_ENTER();
 
-  if(cfg->dce_data.is_connected) {
-    cfg->dce_data.ufd.fd = dce_rx_fd(&cfg->dce_data);
-    cfg->dce_data.ufd.cb = dce_data_cb;
-    uloop_fd_add(&cfg->dce_data.ufd, ULOOP_READ);
-  }
-  else
-  {
-    uloop_fd_delete(&cfg->dce_data.ufd);
-  }
+    if (cfg->dce_data.is_connected)
+    {
+        if (!cfg->dce_data.ufd.registered)
+        {
+            cfg->dce_data.ufd.fd = dce_rx_fd(&cfg->dce_data);
+            cfg->dce_data.ufd.cb = dce_data_cb;
+            uloop_fd_add(&cfg->dce_data.ufd, ULOOP_READ);
+        }
+    }
+    else if (cfg->dce_data.ufd.registered)
+    {
+        uloop_fd_delete(&cfg->dce_data.ufd);
+    }
 
-  LOG_EXIT();
+    LOG_EXIT();
 }
 
 static void
@@ -431,7 +436,7 @@ handle_ring_timeout(modem_config * const cfg)
 }
 
 static void
-handle_ring_timeout_cb(struct uloop_timeout * const t)
+ring_timeout_cb(struct uloop_timeout * const t)
 {
   modem_config * const cfg = container_of(t, modem_config, ring_timer);
   handle_ring_timeout(cfg);
@@ -448,7 +453,7 @@ check_start_ring_timer(modem_config * const cfg)
      && cfg->is_ringing)
   {
           LOG(LOG_ALL, "Setting timer for rings");
-          t->cb = handle_ring_timeout_cb;
+          t->cb = ring_timeout_cb;
           uloop_timeout_set(t, ring_interval_secs * 1000);
   }
   else
@@ -602,7 +607,7 @@ void bridge_init(modem_config * const cfg)
   }
 
   status_timer_cb(&cfg->status_timer);
-  ip_thread(cfg);
+  ip_monitoring_init(cfg);
 
   mdm_set_control_lines(cfg);
   bridge_data->last_conn_type = cfg->conn_type;
