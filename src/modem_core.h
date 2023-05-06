@@ -99,8 +99,6 @@ typedef struct control_data_st {
 
 typedef struct modem_config {
   // master configuration information
-  int mp[2][2];
-  struct uloop_fd mp_ufd[2];
   int cp[2][2];
   struct uloop_fd cp_ufd[2];
   int wp[2];

@@ -36,10 +36,10 @@ int accept_connection(modem_config *cfg) {
       cfg->rings = 0;
       mdm_send_ring(cfg);
     }
-    // tell parent I got it.
-    LOG(LOG_DEBUG, "Informing parent task that I am busy");
-    writePipe(cfg->mp[0][1], MSG_BUSY);
   }
+
+  do_all_checks(cfg);
+
   LOG_EXIT();
   return 0;
 }
@@ -578,35 +578,6 @@ done:
 }
 
 static void
-mp1_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
-{
-  modem_config * const cfg = container_of(u, modem_config, mp_ufd[1]);
-
-  LOG_ENTER();
-
-  if (u->eof || u->error)
-  {
-      uloop_fd_delete(u);
-      /* TODO: what? End program? (uloop_done();) */
-      goto done;
-  }
-
-  LOG(LOG_DEBUG, "Data available on incoming IPC pipe");
-  unsigned char buf[256];
-  int const res = readPipe(cfg->mp[1][0], buf, sizeof(buf));
-  (void)res;
-  switch (buf[0]) {
-    case MSG_CALLING:       // accept connection.
-      accept_connection(cfg);
-      break;
-  }
-
-done:
-  do_all_checks(cfg);
-  LOG_EXIT();
-}
-
-static void
 do_all_checks(modem_config * const cfg)
 {
   check_connection_type_change(cfg);
@@ -634,10 +605,6 @@ void bridge_init(modem_config * const cfg)
 
   bridge_data->last_cmd_mode = cfg->is_cmd_mode;
   bridge_data->action_pending = false;
-
-  cfg->mp_ufd[1].cb = mp1_read_handler_cb;
-  cfg->mp_ufd[1].fd = cfg->mp[1][0];
-  uloop_fd_add(&cfg->mp_ufd[1], ULOOP_READ);
 
   if(-1 == pipe(cfg->wp)) {
     ELOG(LOG_FATAL, "Control line watch task incoming IPC pipe could not be created");
