@@ -33,7 +33,10 @@ listening_socket_handler(struct uloop_fd * u, unsigned int events);
 static void
 accept_pending_update(bool const new_accept_pending)
 {
+    LOG_ENTER();
     accept_pending = new_accept_pending;
+
+    LOG(LOG_DEBUG, "accept pending is: %d", accept_pending);
 
     /* The idea here is that the program stops listening for incoming
      * connections while there is an outstanding connection request.
@@ -45,6 +48,7 @@ accept_pending_update(bool const new_accept_pending)
     {
         if (!sSocket_ufd.registered)
         {
+            LOG(LOG_DEBUG, "start listening for incoming IP connections");
             sSocket_ufd.fd = sSocket;
             sSocket_ufd.cb = listening_socket_handler;
             uloop_fd_add(&sSocket_ufd, ULOOP_READ);
@@ -52,8 +56,10 @@ accept_pending_update(bool const new_accept_pending)
     }
     else if (sSocket_ufd.registered)
     {
+        LOG(LOG_DEBUG, "stop listening for incoming IP connections");
         uloop_fd_delete(&sSocket_ufd);
     }
+    LOG_EXIT();
 }
 
 static void
@@ -104,7 +110,7 @@ listening_socket_handler(struct uloop_fd * u, unsigned int events)
         // first try for a modem that is listening.
         for (i = 0; i < modem_count; i++)
         {
-            if (cfgs[i].s[0] != 0 && !cfgs[i].is_off_hook)
+            if (cfgs[i].s[0] != 0 && !cfgs[i].line_data.is_connected)
             {
                 // send signal to pipe saying pick up...
                 LOG(LOG_DEBUG, "Sending incoming connection to listening modem #%d", i);
@@ -113,10 +119,10 @@ listening_socket_handler(struct uloop_fd * u, unsigned int events)
                 break;
             }
         }
-        // now, send to any non-active modem.
+        // now, send to any non-active modem that isn't already connected.
         for (i = 0; i < modem_count; i++)
         {
-            if (!cfgs[i].is_off_hook)
+            if (!cfgs[i].line_data.is_connected)
             {
                 // send signal to pipe saying pick up...
                 LOG(LOG_DEBUG, "Sending incoming connection to non-connected modem #%d", i);
