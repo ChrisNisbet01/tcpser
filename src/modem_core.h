@@ -101,13 +101,11 @@ typedef struct modem_config {
   // master configuration information
   int cp[2][2];
   struct uloop_fd cp_ufd[2];
-  int wp[2];
-  struct uloop_fd wp_ufd;
 
   bridge_data_st bridge_data;
   control_data_st control_data;
 
-  struct uloop_timeout ctrl_thread_timer;
+  struct uloop_timeout status_timer;
   struct uloop_timeout ring_timer;
   struct uloop_timeout other_timer;
 

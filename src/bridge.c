@@ -17,6 +17,7 @@
 
 static const char MDM_NO_ANSWER[] = "NO ANSWER\n";
 static unsigned int const ring_interval_secs = 2;
+static unsigned int const status_timer_interval_msecs = 100;
 #define TEXT_BUF_SIZE 1025
 static int action_pending = false;
 
@@ -167,13 +168,14 @@ action_pending_change(modem_config * cfg, bool new_action_pending)
         && !cfg->is_cmd_mode
         && cfg->line_data.fd > -1
         && cfg->line_data.is_connected
+        && !cfg->line_data.ufd.registered
     )
     {
         cfg->line_data.ufd.cb = line_data_cb;
         cfg->line_data.ufd.fd = cfg->line_data.fd;
         uloop_fd_add(&cfg->line_data.ufd, ULOOP_READ);
     }
-    else
+    else if (cfg->line_data.ufd.registered)
     {
         uloop_fd_delete(&cfg->line_data.ufd);
     }
@@ -244,7 +246,7 @@ ip_thread(modem_config* cfg)
 }
 
 static void
-ctrl_thread(modem_config * cfg)
+status_update(modem_config * cfg)
 {
     control_data_st * const control_data = &cfg->control_data;
     int const new_status = dce_get_control_lines(&cfg->dce_data);
@@ -252,35 +254,41 @@ ctrl_thread(modem_config * cfg)
     if (new_status > -1 && control_data->status != new_status)
     {
         LOG(LOG_DEBUG, "Control Line Change");
-        if ((new_status & DCE_CL_DTR) != (control_data->status & DCE_CL_DTR))
+        bool const dtr_changed =
+            ((new_status ^ control_data->status) & DCE_CL_DTR) != 0;
+        bool const link_changed =
+          ((new_status ^ control_data->status) & DCE_CL_LE) != 0;
+
+        control_data->status = new_status;
+        if (dtr_changed)
         {
             if ((new_status & DCE_CL_DTR))
             {
                 LOG(LOG_INFO, "DTR has gone high");
-                writePipe(cfg->wp[1], MSG_DTR_UP);
             }
             else
             {
                 LOG(LOG_INFO, "DTR has gone low");
-                writePipe(cfg->wp[1], MSG_DTR_DOWN);
+                mdm_disconnect(cfg, false);
             }
         }
-        if ((new_status & DCE_CL_LE) != (control_data->status & DCE_CL_LE))
+        if (link_changed)
         {
             if ((new_status & DCE_CL_LE))
             {
                 LOG(LOG_INFO, "Link has come up");
-                writePipe(cfg->wp[1], MSG_LE_UP);
             }
             else
             {
                 LOG(LOG_INFO, "Link has gone down");
-                writePipe(cfg->wp[1], MSG_LE_DOWN);
             }
+        }
+        if (dtr_changed || link_changed)
+        {
+          do_all_checks(cfg);
         }
     }
 
-    control_data->status = new_status;
     if (control_data->status < 0)
     {
         /* Can't obtain status, so exit the program. */
@@ -289,39 +297,47 @@ ctrl_thread(modem_config * cfg)
 }
 
 static void
-ctrl_thread_timer_cb(struct uloop_timeout * const t)
+status_timer_cb(struct uloop_timeout * const t)
 {
-    modem_config * const cfg = container_of(t, modem_config, ctrl_thread_timer);
+    modem_config * const cfg = container_of(t, modem_config, status_timer);
 
-    ctrl_thread(cfg);
-    t->cb = ctrl_thread_timer_cb;
-    uloop_timeout_set(t, 100);
+    status_update(cfg);
+    t->cb = status_timer_cb;
+    uloop_timeout_set(t, status_timer_interval_msecs);
 }
 
 static void
 check_connection_type_change(modem_config * const cfg)
 {
-  bridge_data_st * const bridge_data = &cfg->bridge_data;
+    bridge_data_st * const bridge_data = &cfg->bridge_data;
 
-    if(bridge_data->last_conn_type != cfg->conn_type) {
-      LOG(LOG_ALL, "Connection status change, handling");
-      writePipe(cfg->cp[1][1], MSG_NOTIFY);
-      if(cfg->conn_type == MDM_CONN_OUTGOING) {
-        if(strlen(cfg->local_connect) > 0) {
-          writeFile(cfg->local_connect, cfg->line_data.fd);
+    if (bridge_data->last_conn_type != cfg->conn_type)
+    {
+        LOG(LOG_ALL, "Connection status change, handling");
+        bridge_data->last_conn_type = cfg->conn_type;
+        if (cfg->conn_type == MDM_CONN_OUTGOING)
+        {
+            if (strlen(cfg->local_connect) > 0)
+            {
+                writeFile(cfg->local_connect, cfg->line_data.fd);
+            }
+            if (strlen(cfg->remote_connect) > 0)
+            {
+                writeFile(cfg->remote_connect, cfg->line_data.fd);
+            }
         }
-        if(strlen(cfg->remote_connect) > 0) {
-          writeFile(cfg->remote_connect, cfg->line_data.fd);
+        else if (cfg->conn_type == MDM_CONN_INCOMING)
+        {
+            if (strlen(cfg->local_answer) > 0)
+            {
+                writeFile(cfg->local_answer, cfg->line_data.fd);
+            }
+            if (strlen(cfg->remote_answer) > 0)
+            {
+                writeFile(cfg->remote_answer, cfg->line_data.fd);
+            }
         }
-      } else if(cfg->conn_type == MDM_CONN_INCOMING) {
-        if(strlen(cfg->local_answer) > 0) {
-          writeFile(cfg->local_answer, cfg->line_data.fd);
-        }
-        if(strlen(cfg->remote_answer) > 0) {
-          writeFile(cfg->remote_answer, cfg->line_data.fd);
-        }
-      }
-      bridge_data->last_conn_type = cfg->conn_type;
+        writePipe(cfg->cp[1][1], MSG_NOTIFY);
     }
 }
 
@@ -331,8 +347,8 @@ check_command_mode_change(modem_config * const cfg)
     bridge_data_st * const bridge_data = &cfg->bridge_data;
 
     if(bridge_data->last_cmd_mode != cfg->is_cmd_mode) {
-      writePipe(cfg->cp[1][1], MSG_NOTIFY);
       bridge_data->last_cmd_mode = cfg->is_cmd_mode;
+      writePipe(cfg->cp[1][1], MSG_NOTIFY);
     }
 }
 
@@ -494,44 +510,6 @@ check_start_other_timer(modem_config * const cfg)
 }
 
 static void
-wp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
-{
-  modem_config * const cfg = container_of(u, modem_config, wp_ufd);
-
-  LOG_ENTER();
-
-  if (u->eof || u->error)
-  {
-      uloop_fd_delete(u);
-      /* TODO: what? End program? (uloop_done();) */
-      goto done;
-  }
-
-  unsigned char buf[256];
-  int const res = readPipe(cfg->wp[0], buf, sizeof(buf) - 1);
-  if (res > 0)
-  {
-    buf[res] = '\0';
-    LOG(LOG_DEBUG, "Received %s from control line watch task", buf);
-    for(int i = 0; i < res ; i++) {
-      switch (buf[i]) {
-        case MSG_DTR_DOWN:
-          // DTR drop, close any active connection and put
-          // in cmd_mode
-          mdm_disconnect(cfg, false);
-          break;
-        default:
-          break;
-      }
-    }
-  }
-
-done:
-  do_all_checks(cfg);
-  LOG_EXIT();
-}
-
-static void
 cp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
 {
   modem_config * const cfg = container_of(u, modem_config, cp_ufd[0]);
@@ -606,14 +584,6 @@ void bridge_init(modem_config * const cfg)
   bridge_data->last_cmd_mode = cfg->is_cmd_mode;
   bridge_data->action_pending = false;
 
-  if(-1 == pipe(cfg->wp)) {
-    ELOG(LOG_FATAL, "Control line watch task incoming IPC pipe could not be created");
-    exit(-1);
-  }
-  cfg->wp_ufd.cb = wp0_read_handler_cb;
-  cfg->wp_ufd.fd = cfg->wp[0];
-  uloop_fd_add(&cfg->wp_ufd, ULOOP_READ);
-
   if(-1 == pipe(cfg->cp[0])) {
     ELOG(LOG_FATAL, "IP thread incoming IPC pipe could not be created");
     exit(-1);
@@ -631,7 +601,7 @@ void bridge_init(modem_config * const cfg)
     exit(-1);
   }
 
-  ctrl_thread_timer_cb(&cfg->ctrl_thread_timer);
+  status_timer_cb(&cfg->status_timer);
   ip_thread(cfg);
 
   mdm_set_control_lines(cfg);
