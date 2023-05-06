@@ -202,8 +202,8 @@ int main(int argc, char * argv[])
             ELOG(LOG_FATAL, "Bridge task incoming IPC pipe could not be created");
             exit(-1);
         }
-        cfgs[i].mp_ufd[i].cb = handle_bridge_ipc_data;
-        cfgs[i].mp_ufd[i].fd = cfgs[i].mp[0][0];
+        cfgs[i].mp_ufd[0].cb = handle_bridge_ipc_data;
+        cfgs[i].mp_ufd[0].fd = cfgs[i].mp[0][0];
         uloop_fd_add(&cfgs[i].mp_ufd[0], ULOOP_READ);
 
         if (-1 == pipe(cfgs[i].mp[1]))

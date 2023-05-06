@@ -257,12 +257,12 @@ ctrl_thread(modem_config * cfg)
             if ((new_status & DCE_CL_DTR))
             {
                 LOG(LOG_INFO, "DTR has gone high");
-                writePipe(cfg->wp[0][1], MSG_DTR_UP);
+                writePipe(cfg->wp[1], MSG_DTR_UP);
             }
             else
             {
                 LOG(LOG_INFO, "DTR has gone low");
-                writePipe(cfg->wp[0][1], MSG_DTR_DOWN);
+                writePipe(cfg->wp[1], MSG_DTR_DOWN);
             }
         }
         if ((new_status & DCE_CL_LE) != (control_data->status & DCE_CL_LE))
@@ -270,12 +270,12 @@ ctrl_thread(modem_config * cfg)
             if ((new_status & DCE_CL_LE))
             {
                 LOG(LOG_INFO, "Link has come up");
-                writePipe(cfg->wp[0][1], MSG_LE_UP);
+                writePipe(cfg->wp[1], MSG_LE_UP);
             }
             else
             {
                 LOG(LOG_INFO, "Link has gone down");
-                writePipe(cfg->wp[0][1], MSG_LE_DOWN);
+                writePipe(cfg->wp[1], MSG_LE_DOWN);
             }
         }
     }
@@ -496,7 +496,7 @@ check_start_other_timer(modem_config * const cfg)
 static void
 wp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
 {
-  modem_config * const cfg = container_of(u, modem_config, wp_ufd[0]);
+  modem_config * const cfg = container_of(u, modem_config, wp_ufd);
 
   LOG_ENTER();
 
@@ -508,7 +508,7 @@ wp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
   }
 
   unsigned char buf[256];
-  int const res = readPipe(cfg->wp[0][0], buf, sizeof(buf) - 1);
+  int const res = readPipe(cfg->wp[0], buf, sizeof(buf) - 1);
   if (res > 0)
   {
     buf[res] = '\0';
@@ -639,13 +639,13 @@ void bridge_init(modem_config * const cfg)
   cfg->mp_ufd[1].fd = cfg->mp[1][0];
   uloop_fd_add(&cfg->mp_ufd[1], ULOOP_READ);
 
-  if(-1 == pipe(cfg->wp[0])) {
+  if(-1 == pipe(cfg->wp)) {
     ELOG(LOG_FATAL, "Control line watch task incoming IPC pipe could not be created");
     exit(-1);
   }
-  cfg->wp_ufd[0].cb = wp0_read_handler_cb;
-  cfg->wp_ufd[0].fd = cfg->wp[0][0];
-  uloop_fd_add(&cfg->wp_ufd[0], ULOOP_READ);
+  cfg->wp_ufd.cb = wp0_read_handler_cb;
+  cfg->wp_ufd.fd = cfg->wp[0];
+  uloop_fd_add(&cfg->wp_ufd, ULOOP_READ);
 
   if(-1 == pipe(cfg->cp[0])) {
     ELOG(LOG_FATAL, "IP thread incoming IPC pipe could not be created");
