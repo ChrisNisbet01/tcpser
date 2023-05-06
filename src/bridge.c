@@ -194,21 +194,25 @@ static void line_data_cb(struct uloop_fd * u, unsigned int events)
         goto done;
     }
 
-    if (cfg->line_data.is_connected) {
-      unsigned char buf[256];
+    if (cfg->line_data.is_connected)
+    {
+        unsigned char buf[256];
 
-      LOG(LOG_DEBUG, "Data available on socket");
-      int const res = line_read(&cfg->line_data, buf, sizeof(buf) - 1);
-      if(res < 0) {
-        LOG(LOG_INFO, "No socket data read, assume closed peer");
-        writePipe(cfg->cp[0][1], MSG_DISCONNECT);
-        action_pending_change(cfg, true);
-      } else {
-        LOG(LOG_DEBUG, "Read %d bytes from socket", res);
-        writePipe(cfg->cp[0][1], MSG_NONE); /* reset inactivity timer */
-        buf[res] = '\0';
-        parse_ip_data(cfg, buf, res);
-      }
+        LOG(LOG_DEBUG, "Data available on socket");
+        int const res = line_read(&cfg->line_data, buf, sizeof(buf) - 1);
+        if (res < 0)
+        {
+            LOG(LOG_INFO, "No socket data read, assume closed peer");
+            writePipe(cfg->cp[0][1], MSG_DISCONNECT);
+            action_pending_change(cfg, true);
+        }
+        else
+        {
+            LOG(LOG_DEBUG, "Read %d bytes from socket", res);
+            writePipe(cfg->cp[0][1], MSG_NONE); /* reset inactivity timer */
+            buf[res] = '\0';
+            parse_ip_data(cfg, buf, res);
+        }
     }
 
 done:
@@ -221,7 +225,7 @@ cp1_read_handler_cb(struct uloop_fd * u, unsigned int events)
     LOG_ENTER();
     modem_config * const cfg = container_of(u, modem_config, cp_ufd[1]);
     unsigned char buf[256];
-    int const res = readPipe(cfg->cp[1][0], buf, sizeof(buf) - 1);
+    int const res = readPipe(cfg->cp[1][0], buf, sizeof(buf));
     (void)res;
     LOG(LOG_DEBUG, "IP thread notified");
     action_pending_change(cfg, false);
@@ -387,7 +391,10 @@ check_read_dce_data(modem_config * const cfg)
 static void
 handle_ring_timeout(modem_config * const cfg)
 {
-  if(cfg->is_cmd_mode && cfg->conn_type == MDM_CONN_NONE && cfg->line_data.is_connected)
+  if(cfg->is_cmd_mode
+     && cfg->conn_type == MDM_CONN_NONE
+     && cfg->line_data.is_connected
+     && cfg->is_ringing)
   {
     if(cfg->s[0] == 0 && cfg->rings == 10) {
       // not going to answer, send some data back to IP and disconnect.
@@ -536,18 +543,29 @@ cp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
 
   unsigned char buf[256];
   int const res = readPipe(cfg->cp[0][0], buf, sizeof(buf));
-  (void)res;
-  LOG(LOG_DEBUG, "Received %c from ip thread", buf[0]);
-  switch (buf[0]) {
-    case MSG_DISCONNECT:
-      if(cfg->direct_conn) {
-        // what should we do here...
-        LOG(LOG_ERROR, "Direct Connection Link broken, disconnecting and awaiting new direct connection");
-        mdm_disconnect(cfg, true);
-      } else {
-        mdm_disconnect(cfg, false);
+
+  for (int i = 0; i < res; i++)
+  {
+      unsigned char const message = buf[i];
+
+      LOG(LOG_DEBUG, "Received %c from ip thread", message);
+      switch (message)
+      {
+      case MSG_NONE:
+        break;
+      case MSG_DISCONNECT:
+          if (cfg->direct_conn)
+          {
+              // what should we do here...
+              LOG(LOG_ERROR, "Direct Connection Link broken, disconnecting and awaiting new direct connection");
+              mdm_disconnect(cfg, true);
+          }
+          else
+          {
+              mdm_disconnect(cfg, false);
+          }
+          break;
       }
-      break;
   }
 
 done:
