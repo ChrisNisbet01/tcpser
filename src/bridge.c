@@ -508,17 +508,21 @@ wp0_read_handler_cb(struct uloop_fd * const u, unsigned int const events)
   }
 
   unsigned char buf[256];
-  int const res = readPipe(cfg->wp[0][0], buf, sizeof(buf));
-  LOG(LOG_DEBUG, "Received %s from control line watch task", buf);
-  for(int i = 0; i < res ; i++) {
-    switch (buf[0]) {
-      case MSG_DTR_DOWN:
-        // DTR drop, close any active connection and put
-        // in cmd_mode
-        mdm_disconnect(cfg, false);
-        break;
-      default:
-        break;
+  int const res = readPipe(cfg->wp[0][0], buf, sizeof(buf) - 1);
+  if (res > 0)
+  {
+    buf[res] = '\0';
+    LOG(LOG_DEBUG, "Received %s from control line watch task", buf);
+    for(int i = 0; i < res ; i++) {
+      switch (buf[i]) {
+        case MSG_DTR_DOWN:
+          // DTR drop, close any active connection and put
+          // in cmd_mode
+          mdm_disconnect(cfg, false);
+          break;
+        default:
+          break;
+      }
     }
   }
 
