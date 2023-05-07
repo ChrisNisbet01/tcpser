@@ -59,11 +59,12 @@ int parse_nvt_subcommand(dce_config *cfg, int fd, nvt_vars *vars, unsigned char 
   char buf[50];
   int slen = 0;
 
-  for (rc = 2; rc < len - 1; rc++) {
-    if (NVT_IAC == data[rc])
-      if (NVT_SE == data[rc + 1]) {
-        rc += 2;
-        break;
+  for (rc = 2; rc < len - 1; rc++)
+  {
+      if (NVT_IAC == data[rc] && NVT_SE == data[rc + 1])
+      {
+          rc += 2;
+          break;
       }
   }
 
@@ -108,32 +109,36 @@ int parse_nvt_subcommand(dce_config *cfg, int fd, nvt_vars *vars, unsigned char 
   return rc;
 }
 
-void get_action(char *txt, nvt_command action) {
-  switch (action) {
-  case NVT_WILL:
-    strcpy(txt, "WILL");
-    break;
-  case NVT_WONT:
-    strcpy(txt, "WONT");
-    break;
-  case NVT_DO:
-    strcpy(txt, "DO");
-    break;
-  case NVT_DONT:
-    strcpy(txt, "DONT");
-    break;
-  default:
-    strcpy(txt, "UNKNOWN");
-    break;
-  }
+static char const * action_to_text(nvt_command const action)
+{
+    char const * action_text;
+
+    switch (action)
+    {
+    case NVT_WILL:
+        action_text = "WILL";
+        break;
+    case NVT_WONT:
+        action_text = "WONT";
+        break;
+    case NVT_DO:
+        action_text = "DO";
+        break;
+    case NVT_DONT:
+        action_text = "DONT";
+        break;
+    default:
+        action_text = "UNKNOWN";
+        break;
+    }
+
+    return action_text;
 }
 
 int send_nvt_command(int fd, nvt_vars *vars, nvt_command action, nvt_option opt) {
   unsigned char cmd[3];
-  char txt[20];
 
-  get_action(txt, action);
-  LOG(LOG_DEBUG, "Sending NVT command: %s %d", txt, opt);
+  LOG(LOG_DEBUG, "Sending NVT command: %s %d", action_to_text(action), opt);
   cmd[0] = NVT_IAC;
   cmd[1] = action;
   cmd[2] = opt;
@@ -146,11 +151,9 @@ int send_nvt_command(int fd, nvt_vars *vars, nvt_command action, nvt_option opt)
 
 int parse_nvt_command(dce_config *cfg, int fd, nvt_vars *vars, nvt_command action, nvt_option opt) {
   bool accept = false;
-  char txt[20];
   int resp;
 
-  get_action(txt, action);
-  LOG(LOG_DEBUG, "Received NVT command: %s %d", txt, opt);
+  LOG(LOG_DEBUG, "Received NVT command: %s %d", action_to_text(action), opt);
   switch (opt) {
     case NVT_OPT_TRANSMIT_BINARY :
       switch (action) {

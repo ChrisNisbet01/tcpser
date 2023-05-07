@@ -4,4 +4,4 @@
 
 int pb_init(void);
 int pb_add(char *from, char *to);
-int pb_search(char *number, char* address);
+char const * pb_search(char const *number);

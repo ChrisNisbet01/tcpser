@@ -8,6 +8,7 @@
 
 #include "debug.h"
 #include "ip.h"
+#include "phone_book.h"
 
 const int BACK_LOG = 5;
 
@@ -45,18 +46,18 @@ int ip_init_server_conn(char *ip, int port) {
   } else {
 
     /*
-     * turn off bind address checking, and allow 
+     * turn off bind address checking, and allow
      * port numbers to be reused - otherwise
-     * the TIME_WAIT phenomenon will prevent 
+     * the TIME_WAIT phenomenon will prevent
      * binding to these addresses.
      */
 
     on = 1;
 
-    rc = setsockopt(sSocket, 
-                    SOL_SOCKET, 
+    rc = setsockopt(sSocket,
+                    SOL_SOCKET,
                     SO_REUSEADDR,
-                    (const char *) &on, 
+                    (const char *) &on,
                     sizeof(on)
                    );
     if (-1 == rc) {
@@ -98,7 +99,7 @@ int ip_init_server_conn(char *ip, int port) {
   return sSocket;
 }
 
-int ip_connect(char *ip) {
+int ip_connect(char const *ip_in) {
   struct sockaddr_in pin;
   struct in_addr cin_addr;
   struct hostent *hp;
@@ -106,11 +107,15 @@ int ip_connect(char *ip) {
   int port = 23;
   char *address;
   char *tmp;
+  char * save_ptr = NULL;
+  char ip[PH_ENTRY_SIZE];
 
   LOG_ENTER();
-  // TODO Can ip be null? If so, fix.
-  address = strtok(ip, ":");
-  tmp = strtok(NULL, ":");
+
+  strncpy(ip, ip_in, sizeof ip);
+  ip[sizeof ip - 1] = '\0';
+  address = strtok_r(ip, ":", &save_ptr);
+  tmp = strtok_r(NULL, ":", &save_ptr);
   if(tmp != NULL && strlen(tmp) > 0) {
     port = atoi(tmp);
   }
@@ -158,7 +163,7 @@ int ip_accept(int sSocket) {
   (void) memset(&clientName, 0, sizeof(clientName));
 
   cSocket = accept(sSocket,
-                   (struct sockaddr *)&clientName, 
+                   (struct sockaddr *)&clientName,
                    &clientLength
                   );
   if (-1 == cSocket) {
@@ -167,12 +172,12 @@ int ip_accept(int sSocket) {
   }
 
   if(-1 == getpeername(cSocket,
-                        (struct sockaddr *)&clientName, 
+                        (struct sockaddr *)&clientName,
                         &clientLength
                        )) {
     ELOG(LOG_WARN, "Could not obtain peer name");
   } else {
-    LOG(LOG_INFO, 
+    LOG(LOG_INFO,
         "Connection accepted from %s",
         inet_ntoa(clientName.sin_addr)
        );

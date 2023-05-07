@@ -84,10 +84,8 @@ int line_off_hook(line_config *cfg) {
 }
 
 int line_connect(line_config *cfg, char *number) {
-  char address[PH_ENTRY_SIZE];
-
   LOG(LOG_INFO, "Connecting line");
-  pb_search(number, address);
+  char const * address = pb_search(number);
   cfg->fd = ip_connect(address);
   if(cfg->fd > -1) {
     LOG(LOG_ALL, "Connected to %s", address);
