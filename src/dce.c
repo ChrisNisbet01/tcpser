@@ -203,30 +203,41 @@ int dce_check_control_lines(dce_config *cfg) {
   return new_state;
 }
 
-int dce_write(dce_config *cfg, unsigned char data[], int len) {
-  unsigned char *buf;
-  int rc;
-  int i;
+int dce_write(dce_config * cfg, unsigned char data[], int len)
+{
+    unsigned char const * buf = data;
+    unsigned char * parity_buf = NULL;
+    int rc;
 
-  log_trace(TRACE_SERIAL_OUT, data, len);
-  if (cfg->is_ip232) {
-    return ip232_write(cfg, data, len);
-  } else if(cfg->parity) {
-    buf = malloc(len);  // TODO what if malloc fails?
-    memcpy(buf, data, len);
-
-    if(0 < cfg->parity) {
-      for (i = 0; i < len; i++) {
-        buf[i] = apply_parity(data[i], cfg->parity);
-      }
+    log_trace(TRACE_SERIAL_OUT, data, len);
+    if (cfg->is_ip232)
+    {
+        return ip232_write(cfg, data, len);
     }
-  } else {
-    buf = data;
-  }
-  rc = cfg->serial->methods->write(cfg->serial, buf, len);
-  if(cfg->parity)
-    free(buf);
-  return rc;
+
+    if (cfg->parity)
+    {
+        parity_buf = malloc(len);
+        if (parity_buf == NULL)
+        {
+            rc = -1;
+            goto done;
+        }
+
+        if (0 < cfg->parity)
+        {
+            for (int i = 0; i < len; i++)
+            {
+                parity_buf[i] = apply_parity(data[i], cfg->parity);
+            }
+            buf = parity_buf;
+        }
+    }
+    rc = cfg->serial->methods->write(cfg->serial, buf, len);
+
+done:
+    free(parity_buf);
+    return rc;
 }
 
 int dce_write_char_raw(dce_config *cfg, unsigned char data) {
